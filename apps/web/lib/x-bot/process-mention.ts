@@ -1,6 +1,6 @@
 import { Client, auth } from 'twitter-api-sdk'
 import { db } from '@/lib/db'
-import { xBotReplies, twitterLinks } from '@react-native-vibe-code/database'
+import { xBotReplies, xBotState, twitterLinks } from '@react-native-vibe-code/database'
 import { eq } from 'drizzle-orm'
 import { classifyTweet, quickAppRequestCheck } from '@/lib/x-bot/classify-tweet'
 import { downloadAndStoreTweetImages } from '@/lib/x-bot/extract-images'
@@ -80,12 +80,48 @@ async function updateTweet(
   await db.update(xBotReplies).set(data).where(eq(xBotReplies.tweetId, tweetId))
 }
 
+// Get the current refresh token — prefer DB (survives rotation), fall back to env var
+async function getStoredRefreshToken(): Promise<string> {
+  const rows = await db
+    .select()
+    .from(xBotState)
+    .where(eq(xBotState.id, 'default'))
+    .limit(1)
+
+  const dbToken = rows[0]?.refreshToken
+  if (dbToken) return dbToken
+
+  const envToken = process.env.TWITTER_REFRESH_TOKEN
+  if (envToken) return envToken
+
+  throw new Error('No refresh token found in database or TWITTER_REFRESH_TOKEN env var')
+}
+
+// Persist the rotated refresh token to the database
+async function saveRefreshToken(token: string): Promise<void> {
+  const existing = await db
+    .select()
+    .from(xBotState)
+    .where(eq(xBotState.id, 'default'))
+    .limit(1)
+
+  if (existing.length === 0) {
+    await db.insert(xBotState).values({
+      id: 'default',
+      refreshToken: token,
+      updatedAt: new Date(),
+    })
+  } else {
+    await db
+      .update(xBotState)
+      .set({ refreshToken: token, updatedAt: new Date() })
+      .where(eq(xBotState.id, 'default'))
+  }
+}
+
 // Get authenticated Twitter client
 export async function getAuthClient(): Promise<Client> {
-  const refreshToken = process.env.TWITTER_REFRESH_TOKEN
-  if (!refreshToken) {
-    throw new Error('TWITTER_REFRESH_TOKEN environment variable is required')
-  }
+  const refreshToken = await getStoredRefreshToken()
 
   const oauth2Client = new auth.OAuth2User({
     client_id: process.env.TWITTER_CLIENT_ID as string,
@@ -97,14 +133,11 @@ export async function getAuthClient(): Promise<Client> {
   oauth2Client.token = { refresh_token: refreshToken }
   await oauth2Client.refreshAccessToken()
 
-  if (
-    oauth2Client.token?.refresh_token &&
-    oauth2Client.token.refresh_token !== refreshToken
-  ) {
-    console.log(
-      'WARNING: Refresh token rotated. Update TWITTER_REFRESH_TOKEN:',
-      oauth2Client.token.refresh_token
-    )
+  // Persist rotated refresh token to survive across invocations
+  const newRefreshToken = oauth2Client.token?.refresh_token
+  if (newRefreshToken && newRefreshToken !== refreshToken) {
+    console.log('[X-Bot] Refresh token rotated — saving to database')
+    await saveRefreshToken(newRefreshToken)
   }
 
   return new Client(oauth2Client)

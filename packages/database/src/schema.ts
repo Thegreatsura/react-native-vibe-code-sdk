@@ -443,6 +443,7 @@ export const xBotReplies = pgTable('x_bot_replies', {
 export const xBotState = pgTable('x_bot_state', {
   id: text('id').primaryKey().default('default'), // Single row with id='default'
   lastTweetId: text('last_tweet_id'), // Last processed tweet ID for since_id
+  refreshToken: text('refresh_token'), // OAuth 2.0 refresh token (rotates on each use)
   updatedAt: timestamp('updated_at').defaultNow(),
 })
 

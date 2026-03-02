@@ -1,6 +1,9 @@
 // app/api/auth/callback/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { db } from '@/lib/db';
+import { xBotState } from '@react-native-vibe-code/database';
+import { eq } from 'drizzle-orm';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -62,8 +65,29 @@ export async function GET(request: Request) {
     const data = await response.json();
     const refreshToken = data.refresh_token;
 
-    // Return the refresh token (and optionally other data)
-    return NextResponse.json({ refresh_token: refreshToken });
+    // Store refresh token in database so it survives rotation
+    if (refreshToken) {
+      const existing = await db
+        .select()
+        .from(xBotState)
+        .where(eq(xBotState.id, 'default'))
+        .limit(1);
+
+      if (existing.length === 0) {
+        await db.insert(xBotState).values({
+          id: 'default',
+          refreshToken,
+          updatedAt: new Date(),
+        });
+      } else {
+        await db
+          .update(xBotState)
+          .set({ refreshToken, updatedAt: new Date() })
+          .where(eq(xBotState.id, 'default'));
+      }
+    }
+
+    return NextResponse.json({ refresh_token: refreshToken, saved_to_db: true });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
