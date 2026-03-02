@@ -187,6 +187,7 @@ Located in `sandbox-templates/`, each template includes:
 - Environment variables configured in Vercel dashboard
 - Database migrations run automatically via Inngest workers
 - E2B sandbox templates must be built and deployed separately
+- **IMPORTANT**: Do NOT add `outputDirectory` to `vercel.json`. Vercel auto-detects the Next.js app in `apps/web/` and resolves `outputDirectory` relative to it. Setting `outputDirectory: "apps/web/.next"` causes a double path error (`apps/web/apps/web/.next`). Let Vercel handle it automatically.
 
 ## Common Workflows
 
