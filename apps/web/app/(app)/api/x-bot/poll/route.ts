@@ -52,9 +52,9 @@ export async function GET(request: NextRequest) {
 
     // Fetch mentions using X API v2
     const params: Record<string, any> = {
-      'tweet.fields': ['author_id', 'created_at', 'text', 'attachments'],
+      'tweet.fields': ['author_id', 'created_at', 'text', 'attachments', 'referenced_tweets'],
       'media.fields': ['url', 'type', 'media_key', 'preview_image_url'],
-      expansions: ['attachments.media_keys', 'author_id'],
+      expansions: ['attachments.media_keys', 'author_id', 'referenced_tweets.id'],
       'user.fields': ['id', 'username'],
       max_results: 20,
     }
@@ -98,10 +98,54 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Check if this mention is a reply to another tweet
+      let parentTweetText: string | undefined
+      let parentMediaUrls: string[] | undefined
+      let parentAuthorId: string | undefined
+
+      const repliedToRef = (tweet as any).referenced_tweets?.find(
+        (ref: any) => ref.type === 'replied_to'
+      )
+
+      if (repliedToRef) {
+        console.log(`[X-Bot Poll] Mention ${tweetId} is a reply to ${repliedToRef.id}, fetching parent tweet...`)
+        try {
+          const parentTweet = await client.tweets.findTweetById(repliedToRef.id, {
+            'tweet.fields': ['author_id', 'text', 'attachments'],
+            'media.fields': ['url', 'type', 'media_key', 'preview_image_url'],
+            expansions: ['attachments.media_keys'],
+          })
+
+          if (parentTweet.data) {
+            parentTweetText = parentTweet.data.text || undefined
+            parentAuthorId = parentTweet.data.author_id || undefined
+
+            // Extract parent tweet media
+            const parentMediaKeys = parentTweet.data.attachments?.media_keys || []
+            const parentMediaIncludes = parentTweet.includes?.media || []
+            if (parentMediaKeys.length > 0) {
+              parentMediaUrls = []
+              for (const key of parentMediaKeys) {
+                const media = parentMediaIncludes.find((m: any) => m.media_key === key)
+                if (media && media.type === 'photo' && media.url) {
+                  parentMediaUrls.push(media.url)
+                }
+              }
+            }
+
+            console.log(`[X-Bot Poll] Parent tweet text: "${parentTweetText?.substring(0, 50)}..."`)
+            console.log(`[X-Bot Poll] Parent tweet images: ${parentMediaUrls?.length || 0}`)
+          }
+        } catch (error) {
+          console.error(`[X-Bot Poll] Failed to fetch parent tweet ${repliedToRef.id}:`, error)
+          // Continue without parent context — non-blocking
+        }
+      }
+
       console.log(`[X-Bot Poll] Processing mention ${tweetId}: "${text.substring(0, 50)}..."`)
 
       const result = await processMention(
-        { tweetId, text, authorId, mediaUrls },
+        { tweetId, text, authorId, mediaUrls, parentTweetText, parentMediaUrls, parentAuthorId },
         client,
         baseUrl
       )

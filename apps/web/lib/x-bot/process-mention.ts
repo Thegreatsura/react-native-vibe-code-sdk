@@ -166,11 +166,33 @@ async function replyWithLinkPrompt(
  * link check → classification → credit check → first reply → project creation → generation trigger
  */
 export async function processMention(
-  mention: { tweetId: string; text: string; authorId: string; mediaUrls: string[] },
+  mention: {
+    tweetId: string
+    text: string
+    authorId: string
+    mediaUrls: string[]
+    parentTweetText?: string
+    parentMediaUrls?: string[]
+    parentAuthorId?: string
+  },
   client: Client,
   baseUrl: string
 ): Promise<{ action: string; projectId?: string; error?: string }> {
-  const { tweetId, text, authorId, mediaUrls: mentionMediaUrls } = mention
+  const { tweetId, text, authorId, mediaUrls: mentionMediaUrls, parentTweetText, parentMediaUrls, parentAuthorId } = mention
+
+  // Merge parent + mention media URLs
+  // Parent images come first (they provide the design context)
+  // Reply images are included only if the reply author is the same as the parent author
+  const allMediaUrls: string[] = []
+  if (parentMediaUrls && parentMediaUrls.length > 0) {
+    allMediaUrls.push(...parentMediaUrls)
+  }
+  if (mentionMediaUrls.length > 0) {
+    // Only include reply images if same author as parent, or if there's no parent
+    if (!parentAuthorId || parentAuthorId === authorId) {
+      allMediaUrls.push(...mentionMediaUrls)
+    }
+  }
 
   // Skip if already processed
   if (await hasProcessed(tweetId)) {
@@ -218,9 +240,9 @@ export async function processMention(
   console.log(`[X-Bot] Found linked user: ${capsuleUserId} (@${authorUsername})`)
 
   // Quick pre-filter before AI classification
-  const mightBeAppRequest = quickAppRequestCheck(text)
+  const mightBeAppRequest = quickAppRequestCheck(text) || (parentTweetText ? quickAppRequestCheck(parentTweetText) : false)
 
-  if (!mightBeAppRequest && mentionMediaUrls.length === 0) {
+  if (!mightBeAppRequest && allMediaUrls.length === 0) {
     console.log(`[X-Bot] Tweet ${tweetId} doesn't look like app request, skipping`)
     await recordTweet({
       tweetId,
@@ -236,7 +258,7 @@ export async function processMention(
 
   // Classify with AI
   console.log(`[X-Bot] Classifying tweet ${tweetId} with AI...`)
-  const classification = await classifyTweet(text, mentionMediaUrls.length > 0, authorUsername)
+  const classification = await classifyTweet(text, allMediaUrls.length > 0, authorUsername, parentTweetText)
   console.log(`[X-Bot] Classification result:`, classification)
 
   if (!classification.isAppRequest) {
@@ -294,9 +316,9 @@ export async function processMention(
   console.log(`[X-Bot] App request detected! Starting generation...`)
 
   let imageUrls: string[] = []
-  if (mentionMediaUrls.length > 0) {
-    console.log(`[X-Bot] Downloading ${mentionMediaUrls.length} images...`)
-    imageUrls = await downloadAndStoreTweetImages(tweetId, mentionMediaUrls)
+  if (allMediaUrls.length > 0) {
+    console.log(`[X-Bot] Downloading ${allMediaUrls.length} images (${parentMediaUrls?.length || 0} from parent, ${mentionMediaUrls.length} from reply)...`)
+    imageUrls = await downloadAndStoreTweetImages(tweetId, allMediaUrls)
     console.log(`[X-Bot] Stored ${imageUrls.length} images`)
   }
 
