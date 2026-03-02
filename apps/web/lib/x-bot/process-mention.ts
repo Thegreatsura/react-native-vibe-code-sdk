@@ -239,40 +239,55 @@ export async function processMention(
   const authorUsername = linkedUser[0].twitterUsername
   console.log(`[X-Bot] Found linked user: ${capsuleUserId} (@${authorUsername})`)
 
-  // Quick pre-filter before AI classification
-  const mightBeAppRequest = quickAppRequestCheck(text) || (parentTweetText ? quickAppRequestCheck(parentTweetText) : false)
+  // Classification can be disabled for testing via env var
+  const DISABLE_CLASSIFIER = process.env.DISABLE_X_BOT_CLASSIFIER === 'true'
 
-  if (!mightBeAppRequest && allMediaUrls.length === 0) {
-    console.log(`[X-Bot] Tweet ${tweetId} doesn't look like app request, skipping`)
-    await recordTweet({
-      tweetId,
-      authorId,
-      authorUsername,
-      tweetText: text,
-      status: 'skipped',
-      errorMessage: 'Not an app request (quick check)',
-      isAppRequest: false,
-    })
-    return { action: 'skipped_not_app_request' }
-  }
+  // Fallback app description when classifier is disabled: use tweet text + parent text
+  const fallbackAppDescription = parentTweetText
+    ? `${parentTweetText}\n\nUser request: ${text}`
+    : text
 
-  // Classify with AI
-  console.log(`[X-Bot] Classifying tweet ${tweetId} with AI...`)
-  const classification = await classifyTweet(text, allMediaUrls.length > 0, authorUsername, parentTweetText)
-  console.log(`[X-Bot] Classification result:`, classification)
+  let classificationResult: { appDescription?: string } = { appDescription: fallbackAppDescription }
 
-  if (!classification.isAppRequest) {
-    console.log(`[X-Bot] Tweet ${tweetId} is not an app request`)
-    await recordTweet({
-      tweetId,
-      authorId,
-      authorUsername,
-      tweetText: text,
-      status: 'skipped',
-      errorMessage: classification.reasoning || 'Not an app request',
-      isAppRequest: false,
-    })
-    return { action: 'skipped_not_app_request_ai' }
+  if (!DISABLE_CLASSIFIER) {
+    // Quick pre-filter before AI classification
+    const mightBeAppRequest = quickAppRequestCheck(text) || (parentTweetText ? quickAppRequestCheck(parentTweetText) : false)
+
+    if (!mightBeAppRequest && allMediaUrls.length === 0) {
+      console.log(`[X-Bot] Tweet ${tweetId} doesn't look like app request, skipping`)
+      await recordTweet({
+        tweetId,
+        authorId,
+        authorUsername,
+        tweetText: text,
+        status: 'skipped',
+        errorMessage: 'Not an app request (quick check)',
+        isAppRequest: false,
+      })
+      return { action: 'skipped_not_app_request' }
+    }
+
+    // Classify with AI
+    console.log(`[X-Bot] Classifying tweet ${tweetId} with AI...`)
+    const classification = await classifyTweet(text, allMediaUrls.length > 0, authorUsername, parentTweetText)
+    classificationResult = classification
+    console.log(`[X-Bot] Classification result:`, classification)
+
+    if (!classification.isAppRequest) {
+      console.log(`[X-Bot] Tweet ${tweetId} is not an app request`)
+      await recordTweet({
+        tweetId,
+        authorId,
+        authorUsername,
+        tweetText: text,
+        status: 'skipped',
+        errorMessage: classification.reasoning || 'Not an app request',
+        isAppRequest: false,
+      })
+      return { action: 'skipped_not_app_request_ai' }
+    }
+  } else {
+    console.log(`[X-Bot] Classifier disabled — treating tweet ${tweetId} as app request`)
   }
 
   // Check subscription/credits before generation
@@ -306,7 +321,7 @@ export async function processMention(
       status: 'skipped',
       errorMessage: creditCheck.reason || 'No credits remaining',
       isAppRequest: true,
-      appDescription: classification.appDescription,
+      appDescription: classificationResult.appDescription,
     })
 
     return { action: 'no_credits' }
@@ -365,7 +380,7 @@ export async function processMention(
       body: JSON.stringify({
         tweetId,
         userId: capsuleUserId,
-        appDescription: classification.appDescription,
+        appDescription: classificationResult.appDescription,
         imageUrls,
         secret: X_BOT_SECRET,
       }),
@@ -400,7 +415,7 @@ export async function processMention(
     body: JSON.stringify({
       projectId: projectData.projectId,
       userId: capsuleUserId,
-      appDescription: classification.appDescription,
+      appDescription: classificationResult.appDescription,
       imageUrls,
       tweetId,
       sandboxId: projectData.sandboxId,
