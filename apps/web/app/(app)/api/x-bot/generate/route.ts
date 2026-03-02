@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, saveProjectMessages } from '@/lib/db'
 import { xBotReplies, projects } from '@react-native-vibe-code/database'
 import { eq } from 'drizzle-orm'
 import { handleClaudeCodeGeneration } from '@/lib/claude-code-handler'
-import { blobUrlsToBase64 } from '@/lib/x-bot/extract-images'
 import { getAuthClient } from '@/lib/x-bot/process-mention'
+import type { UIMessage } from 'ai'
 
 export const maxDuration = 300 // 5 minutes
 
@@ -71,19 +71,24 @@ export async function POST(request: NextRequest) {
       .set({ generationStatus: 'generating' })
       .where(eq(xBotReplies.tweetId, tweetId))
 
-    // Convert blob URLs to base64 for AI
-    let images: string[] = []
-    if (imageUrls && imageUrls.length > 0) {
-      console.log(`[X-Bot Generate] Converting ${imageUrls.length} images to base64`)
-      images = await blobUrlsToBase64(imageUrls)
-    }
+    // Build imageAttachments from blob URLs so they flow through to the executor
+    // (the executor downloads images via --image-urls, base64 `images` field is not used)
+    const imageAttachments = (imageUrls && imageUrls.length > 0)
+      ? imageUrls.map((url, i) => ({
+          url,
+          contentType: 'image/png',
+          name: `tweet-image-${i + 1}.png`,
+          size: 0,
+        }))
+      : undefined
 
     // Build the prompt
-    const prompt = buildPrompt(appDescription, images.length > 0)
+    const prompt = buildPrompt(appDescription, !!imageAttachments)
 
     // Track generation result
     let generationSucceeded = false
     let generationError: string | null = null
+    let fullContent = ''
 
     // Call the Claude Code handler
     await handleClaudeCodeGeneration(
@@ -91,19 +96,47 @@ export async function POST(request: NextRequest) {
         projectId,
         userID: userId,
         userMessage: prompt,
-        images,
+        imageAttachments,
         isFirstMessage: true,
         sandboxId,
         messageId: `xbot-${tweetId}`,
       },
       {
         onMessage: (message) => {
-          // Log progress (we can't stream to Twitter, so just log)
+          // Accumulate content for saving to DB
+          fullContent += message + '\n'
           console.log(`[X-Bot Generate] Progress: ${message.substring(0, 100)}...`)
         },
         onComplete: async (result) => {
           console.log(`[X-Bot Generate] Generation complete for tweet ${tweetId}`)
           generationSucceeded = true
+
+          // Add summary to content
+          if (result.summary) {
+            fullContent += `\n\n✅ ${result.summary}`
+          }
+
+          // Save messages to DB so chat panel shows history
+          try {
+            const userMessage: UIMessage = {
+              id: `xbot-${tweetId}`,
+              role: 'user',
+              content: appDescription,
+              createdAt: new Date(),
+              parts: [{ type: 'text', text: appDescription }],
+            }
+            const assistantMessage: UIMessage = {
+              id: `xbot-${tweetId}-response`,
+              role: 'assistant',
+              content: fullContent,
+              createdAt: new Date(),
+              parts: [{ type: 'text', text: fullContent }],
+            }
+            await saveProjectMessages(projectId, userId, [userMessage, assistantMessage] as any)
+            console.log(`[X-Bot Generate] Messages saved to DB for project ${projectId}`)
+          } catch (saveError) {
+            console.error(`[X-Bot Generate] Failed to save messages to DB:`, saveError)
+          }
 
           // Update xBotReplies with completion
           await db
@@ -129,6 +162,30 @@ export async function POST(request: NextRequest) {
           console.error(`[X-Bot Generate] Error for tweet ${tweetId}:`, error)
           generationError = error
           generationSucceeded = false
+
+          // Save partial content + error to DB so user sees what happened
+          if (fullContent) {
+            try {
+              const userMessage: UIMessage = {
+                id: `xbot-${tweetId}`,
+                role: 'user',
+                content: appDescription,
+                createdAt: new Date(),
+                parts: [{ type: 'text', text: appDescription }],
+              }
+              const assistantMessage: UIMessage = {
+                id: `xbot-${tweetId}-response`,
+                role: 'assistant',
+                content: fullContent + `\n\n❌ Error: ${error}`,
+                createdAt: new Date(),
+                parts: [{ type: 'text', text: fullContent + `\n\n❌ Error: ${error}` }],
+              }
+              await saveProjectMessages(projectId, userId, [userMessage, assistantMessage] as any)
+              console.log(`[X-Bot Generate] Partial messages saved to DB for project ${projectId}`)
+            } catch (saveError) {
+              console.error(`[X-Bot Generate] Failed to save partial messages:`, saveError)
+            }
+          }
 
           // Update xBotReplies with failure
           await db

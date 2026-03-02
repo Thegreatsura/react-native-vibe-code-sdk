@@ -15,7 +15,10 @@ interface ReplyRequest {
 
 /**
  * Build the final reply text within Twitter's 280 character limit.
- * Includes app title, brief description, edit link, and remix link.
+ * Format:
+ *   Your app "title" is ready:
+ *   Edit your app: URL
+ *   Remix it: URL
  */
 function buildReplyText(
   title: string,
@@ -27,26 +30,8 @@ function buildReplyText(
   const editUrl = `${baseUrl}/p/${projectId}`
   const remixUrl = `${baseUrl}/p/${projectId}/remix`
 
-  const links = `\nEdit your app: ${editUrl}\nRemix it: ${remixUrl}`
-  const header = `Your app "${title}" is ready!`
-
-  // Calculate remaining space for description
-  // 280 char limit, account for header + links + newlines
-  const fixedLength = header.length + links.length + 2 // 2 for newlines between sections
-  const maxDescLength = 280 - fixedLength
-
-  if (!appDescription || maxDescLength <= 0) {
-    const text = `${header}${links}`
-    return text.length <= 280 ? text : text.substring(0, 280)
-  }
-
-  const desc =
-    appDescription.length > maxDescLength
-      ? appDescription.substring(0, maxDescLength - 3) + '...'
-      : appDescription
-
-  const text = `${header}\n\n${desc}${links}`
-  return text.length <= 280 ? text : `${header}${links}`
+  const text = `Your app "${title}" is ready:\nEdit your app: ${editUrl}\nRemix it: ${remixUrl}`
+  return text.length <= 280 ? text : text.substring(0, 280)
 }
 
 export async function POST(request: NextRequest) {
