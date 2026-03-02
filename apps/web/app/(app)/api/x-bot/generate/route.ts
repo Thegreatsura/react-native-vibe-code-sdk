@@ -39,6 +39,8 @@ interface GenerateRequest {
   projectId: string
   userId: string
   appDescription: string
+  mentionText?: string
+  parentTweetText?: string
   imageUrls: string[]
   tweetId: string
   sandboxId: string
@@ -47,7 +49,7 @@ interface GenerateRequest {
 
 export async function POST(request: NextRequest) {
   const body: GenerateRequest = await request.json()
-  const { projectId, userId, appDescription, imageUrls, tweetId, sandboxId, secret } = body
+  const { projectId, userId, appDescription, mentionText, parentTweetText, imageUrls, tweetId, sandboxId, secret } = body
 
   // Validate internal secret
   if (secret !== X_BOT_SECRET) {
@@ -84,8 +86,9 @@ export async function POST(request: NextRequest) {
         }))
       : undefined
 
-    // Build the prompt
-    const prompt = buildPrompt(appDescription, !!imageAttachments)
+    // Build the prompt for the executor and the display message for the chat panel
+    const prompt = buildPrompt(appDescription, !!imageAttachments, mentionText, parentTweetText)
+    const displayMessage = buildDisplayMessage(mentionText, parentTweetText, appDescription)
 
     // Track generation result
     let generationSucceeded = false
@@ -121,7 +124,7 @@ export async function POST(request: NextRequest) {
           // Save messages to DB so chat panel shows history
           try {
             // Build user message parts: text + any attached images
-            const userParts: UIMessage['parts'] = [{ type: 'text', text: appDescription }]
+            const userParts: UIMessage['parts'] = [{ type: 'text', text: displayMessage }]
             if (imageUrls && imageUrls.length > 0) {
               for (const url of imageUrls) {
                 userParts.push({ type: 'image', image: url } as any)
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
             const userMessage: UIMessage = {
               id: `xbot-${tweetId}`,
               role: 'user',
-              content: appDescription,
+              content: displayMessage,
               createdAt: new Date(),
               parts: userParts,
             }
@@ -177,7 +180,7 @@ export async function POST(request: NextRequest) {
           if (fullContent) {
             try {
               // Build user message parts: text + any attached images
-              const userParts: UIMessage['parts'] = [{ type: 'text', text: appDescription }]
+              const userParts: UIMessage['parts'] = [{ type: 'text', text: displayMessage }]
               if (imageUrls && imageUrls.length > 0) {
                 for (const url of imageUrls) {
                   userParts.push({ type: 'image', image: url } as any)
@@ -187,7 +190,7 @@ export async function POST(request: NextRequest) {
               const userMessage: UIMessage = {
                 id: `xbot-${tweetId}`,
                 role: 'user',
-                content: appDescription,
+                content: displayMessage,
                 createdAt: new Date(),
                 parts: userParts,
               }
@@ -274,10 +277,32 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Build the user-facing message shown in the chat panel
+ */
+function buildDisplayMessage(mentionText?: string, parentTweetText?: string, appDescription?: string): string {
+  // Clean @mentions from the user's tweet text
+  const cleanMention = (mentionText || appDescription || '').replace(/@\w+/g, '').trim()
+
+  if (parentTweetText) {
+    return `${cleanMention}\n\nWe are creating an app based on this tweet:\n\n"${parentTweetText}"`
+  }
+
+  return cleanMention || appDescription || ''
+}
+
+/**
  * Build a prompt for app generation from tweet description
  */
-function buildPrompt(appDescription: string, hasImages: boolean): string {
-  let prompt = `Create a React Native Expo mobile app based on this request:\n\n${appDescription}\n\n`
+function buildPrompt(appDescription: string, hasImages: boolean, mentionText?: string, parentTweetText?: string): string {
+  let prompt = 'Create a React Native Expo mobile app based on this request:\n\n'
+
+  if (parentTweetText) {
+    const cleanMention = (mentionText || '').replace(/@\w+/g, '').trim()
+    prompt += `User request: ${cleanMention || appDescription}\n\n`
+    prompt += `Original tweet content to use as reference:\n"${parentTweetText}"\n\n`
+  } else {
+    prompt += `${appDescription}\n\n`
+  }
 
   if (hasImages) {
     prompt += `I've attached reference images for the design. Please use them as inspiration for the UI layout and styling.\n\n`

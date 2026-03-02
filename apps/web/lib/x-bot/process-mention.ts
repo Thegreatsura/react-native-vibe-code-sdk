@@ -427,6 +427,8 @@ export async function processMention(
       projectId: projectData.projectId,
       userId: capsuleUserId,
       appDescription: classificationResult.appDescription,
+      mentionText: text,
+      parentTweetText,
       imageUrls,
       tweetId,
       sandboxId: projectData.sandboxId,
