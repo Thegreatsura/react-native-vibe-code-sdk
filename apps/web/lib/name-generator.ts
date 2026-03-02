@@ -2,6 +2,8 @@
 
 import { generateText } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { db } from '@/lib/db'
+import { projects, sql } from '@react-native-vibe-code/database'
 
 /**
  * Generate a short title from the first user message
@@ -57,10 +59,49 @@ Rules:
 
     console.log('[Name Generator] Clean title:', cleanTitle)
 
-    return cleanTitle || 'my-app'
+    const baseTitle = cleanTitle || 'my-app'
+    return await deduplicateTitle(baseTitle)
   } catch (error) {
     console.error('[Name Generator] Error generating title:', error instanceof Error ? error.message : error)
     // Fallback title
     return 'my-app'
   }
+}
+
+/**
+ * Check if a title is already taken and append a number suffix if so.
+ * e.g. "weather-app" -> "weather-app-2" -> "weather-app-3"
+ */
+async function deduplicateTitle(baseTitle: string): Promise<string> {
+  try {
+    // Find all projects whose title matches "baseTitle" or "baseTitle-N"
+    const existing = await db
+      .select({ title: projects.title })
+      .from(projects)
+      .where(
+        sql`${projects.title} = ${baseTitle} OR ${projects.title} ~ ${'^' + escapeRegex(baseTitle) + '-[0-9]+$'}`
+      )
+
+    if (existing.length === 0) {
+      return baseTitle
+    }
+
+    // Extract the highest existing suffix number
+    const existingTitles = new Set(existing.map(p => p.title))
+    let suffix = 2
+    while (existingTitles.has(`${baseTitle}-${suffix}`)) {
+      suffix++
+    }
+
+    const deduped = `${baseTitle}-${suffix}`
+    console.log('[Name Generator] Title taken, using:', deduped)
+    return deduped
+  } catch (error) {
+    console.error('[Name Generator] Dedup check failed, using base title:', error instanceof Error ? error.message : error)
+    return baseTitle
+  }
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
