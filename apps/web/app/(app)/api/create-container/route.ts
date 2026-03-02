@@ -8,7 +8,6 @@ import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { generateTitleFromUserMessage } from '@/lib/name-generator'
 import { updateAppConfigWithName } from '@react-native-vibe-code/publish'
-import type { UIMessage } from 'ai'
 import { provisionManagedConvexProject } from '@/lib/convex/management-api'
 import { pusherServer } from '@/lib/pusher'
 import { restoreConvexEnvToSandbox } from '@/lib/convex/sandbox-utils'
@@ -273,7 +272,7 @@ interface CreateContainerRequest {
   teamID?: string
   template?: string
   chooseTemplate?: 'expo' | 'tamagui' | 'expo-testing'
-  firstMessage?: UIMessage // First user message to generate fantasy name
+  firstMessage?: { role: string; content: string }
 }
 
 export async function POST(req: NextRequest) {

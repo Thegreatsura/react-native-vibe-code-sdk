@@ -2,7 +2,6 @@
 
 import { generateText } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { UIMessage } from 'ai'
 
 /**
  * Generate a short title from the first user message
@@ -11,27 +10,40 @@ import type { UIMessage } from 'ai'
 export async function generateTitleFromUserMessage({
   message,
 }: {
-  message: UIMessage
+  message: { role: string; content: string }
 }): Promise<string> {
+  const userContent = typeof message.content === 'string' ? message.content : ''
+
+  if (!userContent.trim()) {
+    console.warn('[Name Generator] Empty message content, using fallback')
+    return 'my-app'
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[Name Generator] ANTHROPIC_API_KEY is not set')
+    return 'my-app'
+  }
+
   try {
     const anthropic = createAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     })
 
     const { text: title } = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'),
-      system: `
-- you will generate a short title based on the first message a user begins a conversation with
-- ensure it is not more than 40 characters long
-- the title should be a summary of the user's message
-- maximus of 3 words 
-- do not use quotes or colons
-- make it lowercase with hyphens instead of spaces (e.g., "weather-app" not "Weather App")
-- keep it concise and descriptive`,
-      prompt: JSON.stringify(message),
+      model: anthropic('claude-haiku-4-5-20251001'),
+      system: `Generate a short app name based on the user's message.
+Rules:
+- Maximum 3 words, max 40 characters
+- Lowercase with hyphens instead of spaces (e.g., "weather-app")
+- No quotes, colons, or special characters
+- Be concise and descriptive
+- Output ONLY the app name, nothing else`,
+      prompt: userContent,
       maxTokens: 50,
       temperature: 0.7,
     })
+
+    console.log('[Name Generator] Raw title from AI:', JSON.stringify(title))
 
     // Clean the title: lowercase, replace spaces with hyphens, remove special chars
     const cleanTitle = title
@@ -43,9 +55,11 @@ export async function generateTitleFromUserMessage({
       .replace(/-{2,}/g, '-')
       .substring(0, 50) // Limit length
 
+    console.log('[Name Generator] Clean title:', cleanTitle)
+
     return cleanTitle || 'my-app'
   } catch (error) {
-    console.error('Error generating title:', error)
+    console.error('[Name Generator] Error generating title:', error instanceof Error ? error.message : error)
     // Fallback title
     return 'my-app'
   }

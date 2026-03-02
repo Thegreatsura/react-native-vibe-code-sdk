@@ -49,7 +49,7 @@ export async function classifyTweet(
       : ''
 
     const result = await generateObject({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       schema: TweetClassificationSchema,
       prompt: `Analyze this tweet and determine if it's requesting to build/create a mobile app.
 
