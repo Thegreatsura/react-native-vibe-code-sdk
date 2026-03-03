@@ -68,14 +68,7 @@ export function PromptDetail({ slug, isAuthenticated }: PromptDetailProps) {
 
   return (
     <div>
-      {/* Back Button */}
-      <Link
-        href="/ui-prompts"
-        className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        <span>Back to gallery</span>
-      </Link>
+
 
       {/* Side-by-side Layout */}
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
@@ -137,7 +130,7 @@ export function PromptDetail({ slug, isAuthenticated }: PromptDetailProps) {
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full rounded-xl bg-green-600 hover:bg-green-500 text-white font-medium py-3 px-4 transition-colors"
             >
-              <span>Try this design now</span>
+              <span>Try this design now: remix codebase</span>
               <ArrowRight className="h-4 w-4" />
             </a>
           )}

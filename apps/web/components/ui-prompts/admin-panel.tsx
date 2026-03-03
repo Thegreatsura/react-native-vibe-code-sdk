@@ -23,14 +23,12 @@ import {
   Pencil,
   Trash2,
   Plus,
-  ArrowLeft,
   Upload,
   X,
   Eye,
   Star,
   Loader2,
 } from "lucide-react"
-import Link from "next/link"
 
 interface UiPrompt {
   id: string
@@ -267,20 +265,13 @@ export function AdminPanel() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/ui-prompts">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              UI Prompts Admin
-            </h1>
-            <p className="text-muted-foreground">
-              Manage the UI prompt gallery
-            </p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">
+            UI Prompts Admin
+          </h1>
+          <p className="text-muted-foreground">
+            Manage the UI prompt gallery
+          </p>
         </div>
         {!showForm && (
           <Button onClick={() => setShowForm(true)}>
