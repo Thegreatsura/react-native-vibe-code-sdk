@@ -2372,7 +2372,7 @@ function ProjectPageInternal() {
         ) : (
           <>
         {/* Mobile mode: Show selected panel based on mobile toggle (hidden on md and up) */}
-        <div className="flex-1 h-full md:hidden">
+        <div className="flex-1 flex flex-col h-full md:hidden overflow-hidden">
             {/* Editable Project Title for mobile */}
             <EditableProjectTitle
               projectTitle={currentProject?.title || (firstMessage ? 'Creating New Project...' : 'New Project')}

@@ -38,7 +38,7 @@ export function LandingFeatures() {
             <span className="font-bold">vibe coding ideas into mobile and web apps</span>
           </h3>
           <p className="text-muted-foreground text-md md:text-lg max-w-2xl mx-auto">
-            Capsule codes for you, so you can create apps by just prompting text or using your voice.
+            The app agent codes for you, so you can create apps by just prompting text or using your voice.
           </p>
         </div>
 
@@ -52,7 +52,7 @@ export function LandingFeatures() {
                   The best code agent by default
                 </h3>
                 <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
-                  Capsule integrates Claude Code the revolutionary coding agent that is shaking the internet. Its a magical combination. We integrated the Claude Code Agent SDK and set by default Claude Opus 4.5 the most powerful coding model on the planet. 
+                  React Native Vibe Code integrates Claude Code the revolutionary coding agent that is shaking the internet. Its a magical combination. We integrated the Claude Code Agent SDK and set by default Claude Opus 4.5 the most powerful coding model on the planet. 
                 </p>
               </div>
               <div className="flex flex-col gap-2 min-w-[300px]">
@@ -169,7 +169,7 @@ export function LandingFeatures() {
                 Cloud: Backend and Database
               </h3>
               <p className="text-muted-foreground text-sm md:text-base leading-relaxed max-w-2xl mb-8">
-                The magic of having an app that not only builds UI but also connects all the pieces to a database and backend logic. This is the most powerful feature of Capsule. Every new app you create can get this integration by enabling the cloud option. After enabling it the code agent knows and creates fullstack apps always for you from there on.<br/> Powered by <Link className="underline" target='_blank' href="https://convex.dev">Convex.</Link>
+                The magic of having an app that not only builds UI but also connects all the pieces to a database and backend logic. Every new app you create can get this integration by enabling the cloud option. After enabling it the code agent knows and creates fullstack apps always for you from there on.<br/> Powered by <Link className="underline" target='_blank' href="https://convex.dev">Convex.</Link>
               </p>
               <div className="flex items-center justify-center gap-4 md:gap-6">
                 {/* Backend */}
@@ -218,7 +218,7 @@ export function LandingFeatures() {
                 <div className="w-full p-4 rounded-lg bg-muted-foreground/5 border border-muted-foreground/10">
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-sm text-muted-foreground font-mono">http://my-amazing-app.capsulethis.app</span>
+                    <span className="text-sm text-muted-foreground font-mono">http://my-amazing-app.pages.dev</span>
                   </div>
                 </div>
               </div>

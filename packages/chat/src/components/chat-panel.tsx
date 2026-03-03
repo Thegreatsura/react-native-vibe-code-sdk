@@ -183,7 +183,7 @@ export function ChatPanel({
   }, [projectId, sandboxId, userId])
 
   return (
-    <div className="flex flex-col border-r relative overflow-hidden h-full">
+    <div className="flex flex-col border-r relative overflow-hidden h-full flex-1 min-h-0">
 
       {/* Messages Container with Conversation (use-stick-to-bottom) */}
       {renderMessages({

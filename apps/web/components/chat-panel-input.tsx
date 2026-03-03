@@ -527,10 +527,9 @@ export const ChatPanelInput = memo(function ChatPanelInput({
 
   return (
     <div
-      className="p-2 pt-0 border-t bg-background flex-shrink-0 pb-4 w-full"
+      className="p-2 pt-0 border-t bg-background flex-shrink-0 w-full"
       style={{
-        // On mobile, use sticky positioning and account for safe area
-        // paddingBottom: isMobile ? 'max(1rem, env(safe-area-inset-bottom))' : undefined,
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
       }}
     >
       {/* Show selection indicator when element is selected */}
@@ -735,8 +734,8 @@ export const ChatPanelInput = memo(function ChatPanelInput({
             </Button>
           </div>
         </div>
-        {/* Cloud row - new bottom row */}
-        <div className="relative flex items-center gap-x-2 bg-background border-t-1 -m-2 p-2 pl-2">
+        {/* Cloud row - new bottom row (hidden on mobile) */}
+        <div className="relative hidden md:flex items-center gap-x-2 bg-background border-t-1 -m-2 p-2 pl-2">
           {/* Invisible overlay when panel is open - clicking it dismisses the panel */}
           {isCloudPanelOpen && (
             <div
