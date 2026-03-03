@@ -107,7 +107,7 @@ const PureMessages = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 ">
-      <Conversation className="flex-1 overflow-y-auto min-h-0 pb-[214px]">
+      <Conversation className="flex-1 overflow-y-auto min-h-0">
         <ConversationContent
           className={contentClassName}
           style={{ maxHeight: maxHeight > 0 ? `${maxHeight}px` : undefined }}
@@ -145,7 +145,6 @@ const PureMessages = ({
         {/* Scroll button must be inside Conversation to access context */}
         <ConversationScrollButton />
       </Conversation>
-      <div className="h-[240px] w-full bg-red-500 "/>
     </div>
   );
 };

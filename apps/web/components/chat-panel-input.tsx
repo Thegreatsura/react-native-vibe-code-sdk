@@ -527,7 +527,7 @@ export const ChatPanelInput = memo(function ChatPanelInput({
 
   return (
     <div
-      className="p-2 pt-0 border-t bg-background flex-shrink-0 md:relative md:pb-4 min-h-[214px] md:min-h-0 absolute bottom-[5px]"
+      className="p-2 pt-0 border-t bg-background flex-shrink-0 pb-4 w-full"
       style={{
         // On mobile, use sticky positioning and account for safe area
         // paddingBottom: isMobile ? 'max(1rem, env(safe-area-inset-bottom))' : undefined,
