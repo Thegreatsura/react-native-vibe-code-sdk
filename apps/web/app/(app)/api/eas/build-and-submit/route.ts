@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server'
 import { connectSandbox } from '@/lib/sandbox-connect'
-import type { CommandHandle } from '@e2b/code-interpreter'
 
 export const maxDuration = 600 // 10 minutes for build+submit process
 
-// Global map to store running process handles keyed by sandboxId
+// Global map to store running PTY process PIDs keyed by sandboxId
 // so the input endpoint can write to stdin
 const runningProcesses = new Map<
   string,
@@ -49,18 +48,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Set environment variables in the sandbox
-    await sbx.commands.run(
-      `export EXPO_TOKEN=${shellEscape(expoToken)}` +
-        (appleId
-          ? ` && export EXPO_APPLE_ID=${shellEscape(appleId)}`
-          : '') +
-        (applePassword
-          ? ` && export EXPO_APPLE_PASSWORD=${shellEscape(applePassword)}`
-          : ''),
-      { cwd: '/home/user/app' }
-    )
-
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
@@ -68,9 +55,13 @@ export async function POST(request: NextRequest) {
         let overallSuccess = false
 
         function sendEvent(event: Record<string, unknown>) {
-          controller.enqueue(
-            encoder.encode(JSON.stringify(event) + '\n')
-          )
+          try {
+            controller.enqueue(
+              encoder.encode(JSON.stringify(event) + '\n')
+            )
+          } catch {
+            // Stream may already be closed
+          }
         }
 
         try {
@@ -80,8 +71,6 @@ export async function POST(request: NextRequest) {
             data: '[Setup] Configuring app for production build...',
           })
 
-          // Set usesNonExemptEncryption to avoid the encryption prompt
-          // and update bundleIdentifier / app name if provided
           const patchScript = `
             const fs = require('fs');
             const configPath = '/home/user/app/app.json';
@@ -106,7 +95,7 @@ export async function POST(request: NextRequest) {
             }
           )
 
-          // Phase 1: Initialize EAS project
+          // Phase 1: Initialize EAS project (non-interactive is fine here)
           sendEvent({
             type: 'log',
             data: '[Phase 1] Initializing EAS project...',
@@ -117,12 +106,8 @@ export async function POST(request: NextRequest) {
           const initResult = await sbx.commands.run(initCmd, {
             cwd: '/home/user/app',
             timeoutMs: 120_000,
-            onStdout: (data: string) => {
-              sendEvent({ type: 'log', data })
-            },
-            onStderr: (data: string) => {
-              sendEvent({ type: 'log', data })
-            },
+            onStdout: (data: string) => sendEvent({ type: 'log', data }),
+            onStderr: (data: string) => sendEvent({ type: 'log', data }),
           })
 
           if (initResult.exitCode !== 0) {
@@ -144,54 +129,85 @@ export async function POST(request: NextRequest) {
             data: '[Phase 1] EAS project initialized successfully.',
           })
 
-          // Phase 2: Build and submit
+          // Phase 2: Build and submit using PTY for interactive Apple auth
           sendEvent({
             type: 'log',
             data: '[Phase 2] Starting EAS build + submit...',
           })
 
-          const envVars = [
+          const envExports = [
             `export EXPO_TOKEN=${shellEscape(expoToken)}`,
             `export EAS_BUILD_NO_EXPO_GO_WARNING=true`,
+            `export EAS_NO_VCS=1`,
             appleId ? `export EXPO_APPLE_ID=${shellEscape(appleId)}` : '',
             applePassword ? `export EXPO_APPLE_PASSWORD=${shellEscape(applePassword)}` : '',
           ].filter(Boolean).join(' && ')
 
-          const buildCmd = `${envVars} && npx eas-cli@latest build -p ios --profile production --auto-submit --non-interactive`
+          const buildCmd = `${envExports} && cd /home/user/app && npx eas-cli@latest build -p ios --profile production --auto-submit`
 
-          // Use a mutable ref so callbacks can access the pid after handle is created
-          const processRef: { pid: number | undefined } = { pid: undefined }
+          // Helper to send input to the PTY process
+          let ptyPid: number | undefined
 
-          const handle: CommandHandle = await sbx.commands.run(buildCmd, {
+          const autoRespond = async (input: string) => {
+            try {
+              if (ptyPid !== undefined) {
+                await sbx.pty.sendInput(
+                  ptyPid,
+                  new TextEncoder().encode(input + '\n')
+                )
+              }
+            } catch {
+              // Best effort – process may have already exited
+            }
+          }
+
+          // Use PTY for the build command – this gives us a real terminal
+          // so EAS CLI's interactive credential & 2FA prompts work properly
+          const ptyHandle = await sbx.pty.create({
+            cols: 120,
+            rows: 40,
             cwd: '/home/user/app',
-            background: true,
             timeoutMs: 540_000, // 9 minutes
-            onStdout: (data: string) => {
-              handleOutput(data, sendEvent, submissionUrl, (url) => {
+            onData: (rawData: Uint8Array) => {
+              const text = new TextDecoder().decode(rawData)
+              // Strip ANSI escape codes for cleaner log display
+              let cleanText = stripAnsi(text)
+              if (!cleanText.trim()) return
+
+              // Mask credentials in output
+              if (expoToken) cleanText = cleanText.replaceAll(expoToken, '***')
+              if (applePassword) cleanText = cleanText.replaceAll(applePassword, '***')
+
+              // Skip terminal prompt lines (e.g. "user@e2b:~/app$")
+              if (/^\d*;?user@e2b/.test(cleanText.trim())) return
+              // Skip lines that are just the export command being echoed
+              if (cleanText.includes('export EXPO_TOKEN=') || cleanText.includes('export EXPO_APPLE_')) return
+
+              handleOutput(cleanText, sendEvent, submissionUrl, (url) => {
                 submissionUrl = url
-              })
-            },
-            onStderr: (data: string) => {
-              handleOutput(data, sendEvent, submissionUrl, (url) => {
-                submissionUrl = url
-              })
+              }, autoRespond)
             },
           })
 
-          processRef.pid = handle.pid
+          ptyPid = ptyHandle.pid
 
-          // Store process handle for stdin access from input route
+          // Store process info for stdin access from input route
           runningProcesses.set(sandboxId, {
-            pid: handle.pid,
+            pid: ptyHandle.pid,
             sandboxId,
           })
 
-          // Wait for process to complete
+          // Send the build command to the PTY
+          await sbx.pty.sendInput(
+            ptyHandle.pid,
+            new TextEncoder().encode(buildCmd + '\n')
+          )
+
+          // Wait for the PTY process to complete
           try {
-            const result = await handle.wait()
+            const result = await ptyHandle.wait()
             overallSuccess = result.exitCode === 0
           } catch (err: any) {
-            // CommandExitError is thrown for non-zero exit codes
             overallSuccess = false
             sendEvent({
               type: 'log',
@@ -199,7 +215,7 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          // Clean up process handle
+          // Clean up
           runningProcesses.delete(sandboxId)
 
           sendEvent({
@@ -250,9 +266,12 @@ function handleOutput(
   sendEvent: (event: Record<string, unknown>) => void,
   currentSubmissionUrl: string | null,
   setSubmissionUrl: (url: string) => void,
+  autoRespond?: (input: string) => Promise<void>,
 ) {
   // Always send the raw log
   sendEvent({ type: 'log', data })
+
+  const lower = data.toLowerCase()
 
   // Check for login failure
   if (data.includes('Invalid username and password combination')) {
@@ -260,11 +279,65 @@ function handleOutput(
     return
   }
 
+  // Detect Apple 2FA / two-step verification – method selection
+  if (
+    lower.includes('two-factor') ||
+    lower.includes('two-step') ||
+    lower.includes('verify your identity') ||
+    lower.includes('how do you want to verify')
+  ) {
+    sendEvent({ type: 'prompt', prompt: '2fa_method' })
+    return
+  }
+
+  // Detect 2FA code entry prompt
+  if (
+    lower.includes('enter the') && (lower.includes('digit code') || lower.includes('verification code'))
+  ) {
+    sendEvent({ type: 'prompt', prompt: '2fa_code' })
+    return
+  }
+
+  // Also detect generic "code:" prompt during 2FA
+  if (/code\s*:\s*$/i.test(data.trim())) {
+    sendEvent({ type: 'prompt', prompt: '2fa_code' })
+    return
+  }
+
+  // Auto-respond to EAS interactive prompts
+  if (autoRespond) {
+    // "Do you want to log in to your Apple account? (Y/n)" → yes
+    if (lower.includes('do you want to log in') && lower.includes('apple')) {
+      autoRespond('Y')
+      return
+    }
+
+    // "Generate a new Apple Distribution Certificate?" or similar yes/no
+    if (
+      lower.includes('generate a new') ||
+      (lower.includes('(y/n)') && (
+        lower.includes('would you like') ||
+        lower.includes('do you want')
+      ))
+    ) {
+      autoRespond('Y')
+      return
+    }
+  }
+
   // Check for submission/build URL
   const urlMatch = data.match(/(https:\/\/expo\.dev\/accounts\/[^\s]+)/)
   if (urlMatch) {
     setSubmissionUrl(urlMatch[1])
   }
+}
+
+/**
+ * Strip ANSI escape codes from terminal output.
+ */
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
 }
 
 /**

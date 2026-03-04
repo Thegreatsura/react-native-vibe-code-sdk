@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await sbx.commands.sendStdin(processInfo.pid, input + '\n')
+    // Send input via PTY (interactive terminal)
+    await sbx.pty.sendInput(
+      processInfo.pid,
+      new TextEncoder().encode(input + '\n')
+    )
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
