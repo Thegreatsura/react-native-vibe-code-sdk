@@ -1,4 +1,6 @@
-// Type definitions for Claude models supported by Claude Agent SDK
+// Type definitions for models supported by each agent type
+
+export type AgentType = 'claude-code' | 'opencode'
 
 export interface ClaudeModel {
   id: string
@@ -26,12 +28,41 @@ export const CLAUDE_MODELS: ClaudeModel[] = [
   },
 ]
 
+export const OPENCODE_MODELS: ClaudeModel[] = [
+  {
+    id: 'anthropic/claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    description: 'Balanced performance and speed',
+    isDefault: true,
+  },
+  {
+    id: 'anthropic/claude-opus-4-5',
+    name: 'Claude Opus 4.5',
+    description: 'Most capable model for complex tasks',
+  },
+  {
+    id: 'anthropic/claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    description: 'Fastest responses',
+  },
+]
+
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'
+export const DEFAULT_OPENCODE_MODEL = 'anthropic/claude-sonnet-4-5'
 
 export const CLAUDE_MODEL_STORAGE_KEY = 'capsule-claude-model'
+export const AGENT_TYPE_STORAGE_KEY = 'capsule-agent-type'
+
+export function getModelsForAgent(agentType: AgentType): ClaudeModel[] {
+  return agentType === 'opencode' ? OPENCODE_MODELS : CLAUDE_MODELS
+}
+
+export function getDefaultModelForAgent(agentType: AgentType): string {
+  return agentType === 'opencode' ? DEFAULT_OPENCODE_MODEL : DEFAULT_CLAUDE_MODEL
+}
 
 export function getClaudeModelById(id: string): ClaudeModel | undefined {
-  return CLAUDE_MODELS.find((m) => m.id === id)
+  return CLAUDE_MODELS.find((m) => m.id === id) || OPENCODE_MODELS.find((m) => m.id === id)
 }
 
 export function getDefaultClaudeModel(): ClaudeModel {

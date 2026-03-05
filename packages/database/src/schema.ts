@@ -118,6 +118,7 @@ export const projects = pgTable('projects', {
   template: text('template').notNull(), // Template type (react-native-expo, etc.)
   status: text('status').notNull().default('active'), // active, paused, completed
   conversationId: text('conversation_id'), // Claude Code conversation ID
+  agentType: text('agent_type').default('claude-code'), // 'claude-code' | 'opencode'
   githubRepo: text('github_repo'), // GitHub repository name for recreation
   isPublic: boolean('is_public').default(true), // Whether project is publicly accessible (public by default, paid users can make private)
   forkedFrom: uuid('forked_from').references((): AnyPgColumn => projects.id, { onDelete: 'set null' }), // Original project if this is a fork

@@ -27,6 +27,8 @@ interface ChatPanelProps {
   isWaitingForFirstMessage?: boolean
   selectedModel: string
   onModelChange: (modelId: string) => void
+  agentType?: 'claude-code' | 'opencode'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
   imageAttachments?: ImageAttachment[]
   onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
   selectedSkills?: string[]
@@ -50,6 +52,8 @@ export function ChatPanel({
   isWaitingForFirstMessage,
   selectedModel,
   onModelChange,
+  agentType,
+  onAgentTypeChange,
   imageAttachments = [],
   onImageAttachmentsChange,
   selectedSkills = [],
@@ -73,6 +77,8 @@ export function ChatPanel({
       isWaitingForFirstMessage={isWaitingForFirstMessage}
       selectedModel={selectedModel}
       onModelChange={onModelChange}
+      agentType={agentType}
+      onAgentTypeChange={onAgentTypeChange}
       imageAttachments={imageAttachments}
       onImageAttachmentsChange={onImageAttachmentsChange}
       selectedSkills={selectedSkills}
@@ -109,6 +115,8 @@ export function ChatPanel({
           onScrollToBottom={() => {}}
           selectedModel={props.selectedModel}
           onModelChange={props.onModelChange}
+          agentType={props.agentType}
+          onAgentTypeChange={props.onAgentTypeChange}
           imageAttachments={props.imageAttachments}
           onImageAttachmentsChange={props.onImageAttachmentsChange}
           selectedSkills={props.selectedSkills}

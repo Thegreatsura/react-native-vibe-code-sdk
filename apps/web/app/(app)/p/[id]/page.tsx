@@ -37,6 +37,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useEffect, useState, useMemo, useCallback, useRef, SetStateAction } from 'react'
 import { useCookieStorage } from '@/hooks/useCookieStorage'
 import { useClaudeModel } from '@/hooks/use-claude-model'
+import { useAgentType } from '@/hooks/use-agent-type'
 import { v4 as uuidv4 } from 'uuid'
 import { useErrorNotifications } from '@/hooks/useErrorNotifications'
 import { useNgrokHealthCheck } from '@/hooks/useNgrokHealthCheck'
@@ -99,6 +100,9 @@ function ProjectPageInternal() {
   // Claude model selection with localStorage persistence
   const { selectedModel, setSelectedModel } = useClaudeModel()
 
+  // Agent type selection (claude-code or opencode)
+  const { agentType, setAgentType, getDefaultModelForAgent } = useAgentType()
+
   // Initialize model from URL if coming from home page
   useEffect(() => {
     if (modelFromUrl && !hasRun.current) {
@@ -158,6 +162,7 @@ function ProjectPageInternal() {
       projectId: projectId || undefined,
       userId: session?.user?.id || undefined,
       claudeModel: selectedModel,
+      agentType,
       imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined,
       ...(pendingEditData
         ? {
@@ -166,7 +171,7 @@ function ProjectPageInternal() {
           }
         : {}),
     }),
-    [projectId, session?.user?.id, pendingEditData, selectedModel, imageAttachments],
+    [projectId, session?.user?.id, pendingEditData, selectedModel, agentType, imageAttachments],
   )
 
   // Utility function to reload preview iframes
@@ -295,6 +300,7 @@ function ProjectPageInternal() {
         projectId: chatBody.projectId,
         userId: chatBody.userId,
         claudeModel: chatBody.claudeModel,
+        agentType: chatBody.agentType,
         fileEdition: chatBody.fileEdition,
         selectionData: chatBody.selectionData,
         imageAttachments: (imageAttachments?.length ?? 0) > 0 ? imageAttachments : undefined,
@@ -2406,6 +2412,11 @@ function ProjectPageInternal() {
                 isWaitingForFirstMessage={!!firstMessageRef.current && messages.length === 0}
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
+                agentType={agentType}
+                onAgentTypeChange={(newType) => {
+                  setAgentType(newType)
+                  setSelectedModel(getDefaultModelForAgent(newType))
+                }}
                 imageAttachments={imageAttachments}
                 onImageAttachmentsChange={setImageAttachments}
                 selectedSkills={selectedSkills}

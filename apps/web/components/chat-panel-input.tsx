@@ -66,6 +66,8 @@ interface ChatPanelInputProps {
   onScrollToBottom?: () => void
   selectedModel: string
   onModelChange: (modelId: string) => void
+  agentType?: 'claude-code' | 'opencode'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
   imageAttachments?: ImageAttachment[]
   onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
   selectedSkills?: string[]
@@ -89,6 +91,8 @@ export const ChatPanelInput = memo(function ChatPanelInput({
   onScrollToBottom,
   selectedModel,
   onModelChange,
+  agentType,
+  onAgentTypeChange,
   imageAttachments = [],
   onImageAttachmentsChange,
   selectedSkills = [],
@@ -679,6 +683,8 @@ export const ChatPanelInput = memo(function ChatPanelInput({
               onChange={onModelChange}
               disabled={isLoading || isTranscribing}
               compact
+              agentType={agentType}
+              onAgentTypeChange={onAgentTypeChange}
             />
           </div>
           <div className="flex space-x-2">

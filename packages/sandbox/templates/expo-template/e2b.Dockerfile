@@ -148,6 +148,12 @@ RUN mkdir -p /claude-sdk/generated_code && chmod 755 /claude-sdk/generated_code 
 # Pre-create .claude settings directory so the SDK doesn't fail on write
 RUN mkdir -p /home/user/.claude && chown -R user:user /home/user/.claude
 
+# Install OpenCode CLI (Go-based AI coding agent)
+RUN curl -fsSL https://opencode.ai/install.sh | bash
+
+# Pre-create OpenCode config directory
+RUN mkdir -p /home/user/.config/opencode && chown -R user:user /home/user/.config/opencode
+
 # Return to app directory and switch to user
 WORKDIR /home/user/app
 USER user

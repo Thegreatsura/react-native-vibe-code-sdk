@@ -2,7 +2,8 @@ import { saveProjectMessages } from '@/lib/db'
 import { streamText, UIMessage } from 'ai'
 import { canUserSendMessage, incrementMessageUsage } from '@/lib/message-usage'
 import { corsHeaders, handleCorsOptions } from '@/lib/cors'
-import { handleClaudeCodeGeneration } from '@/lib/claude-code-handler'
+import { dispatchToAgent } from '@/lib/agent-dispatcher'
+import type { AgentType } from '@/lib/agent-dispatcher'
 
 type ClaudeCodeResponse = {
   type: 'message' | 'completion' | 'error'
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     selectionData,
     imageAttachments,
     skills,
+    agentType,
   }: {
     messages: UIMessage[]
     projectId: string
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
     selectionData?: any
     imageAttachments?: Array<{ url: string; contentType: string; name: string; size: number }>
     skills?: string[]
+    agentType?: AgentType
   } = await req.json()
 
   // Get the last user message to send to claude-code
@@ -353,7 +356,7 @@ export async function POST(req: Request) {
 
                   try {
                     // Call the handler module directly - no HTTP, no timeout issues!
-                    await handleClaudeCodeGeneration(
+                    await dispatchToAgent(
                       {
                         userMessage: lastUserMessage,
                         messageId: lastUserMessageId,
@@ -365,6 +368,7 @@ export async function POST(req: Request) {
                         claudeModel,
                         imageAttachments: finalImageAttachments,
                         skills,
+                        agentType,
                       },
                       {
                         onMessage: (message: string) => {
