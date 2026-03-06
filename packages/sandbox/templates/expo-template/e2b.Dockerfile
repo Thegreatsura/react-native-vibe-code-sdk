@@ -148,8 +148,9 @@ RUN mkdir -p /claude-sdk/generated_code && chmod 755 /claude-sdk/generated_code 
 # Pre-create .claude settings directory so the SDK doesn't fail on write
 RUN mkdir -p /home/user/.claude && chown -R user:user /home/user/.claude
 
-# Install OpenCode CLI (Go-based AI coding agent)
-RUN curl -fsSL https://opencode.ai/install.sh | bash
+# Install OpenCode CLI
+RUN npm i -g opencode-ai@latest && \
+    which opencode && opencode version || echo "opencode install warning: binary not found after npm install"
 
 # Pre-create OpenCode config directory
 RUN mkdir -p /home/user/.config/opencode && chown -R user:user /home/user/.config/opencode

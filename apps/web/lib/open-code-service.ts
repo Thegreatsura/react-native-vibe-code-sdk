@@ -19,7 +19,7 @@ import type { AppGenerationRequest, AppGenerationResponse, StreamingCallbacks } 
 
 const OPENCODE_PORT = 4096
 const HEALTH_POLL_INTERVAL = 1000
-const HEALTH_TIMEOUT = 20_000
+const HEALTH_TIMEOUT = 60_000
 const SESSION_TIMEOUT = 30 * 60 * 1000 // 30 minutes
 
 export class OpenCodeService {
@@ -41,6 +41,10 @@ export class OpenCodeService {
 
     console.log('[OpenCode Service] Starting OpenCode server...')
 
+    // Resolve the opencode binary path — it may not be in the default PATH
+    const opencodeBin = await this.resolveOpenCodeBinary(sandbox)
+    console.log('[OpenCode Service] Using opencode binary at:', opencodeBin)
+
     // Write opencode config
     // Note: OpenCode auto-detects ANTHROPIC_API_KEY from env vars,
     // but we also set it explicitly in the provider options for reliability.
@@ -53,7 +57,7 @@ export class OpenCodeService {
           },
         },
       },
-      model: model || 'anthropic/claude-sonnet-4-5',
+      model: model || 'anthropic/claude-opus-4-5',
       permission: { '*': 'allow' },
       server: { port: OPENCODE_PORT, hostname: '0.0.0.0' },
     }
@@ -63,7 +67,7 @@ export class OpenCodeService {
 
     // Start opencode serve in background
     await sandbox.commands.run(
-      `cd /home/user && OPENCODE_CONFIG=/home/user/opencode.json ANTHROPIC_API_KEY="${process.env.ANTHROPIC_API_KEY || ''}" opencode serve --port ${OPENCODE_PORT} &`,
+      `cd /home/user && OPENCODE_CONFIG=/home/user/opencode.json ANTHROPIC_API_KEY="${process.env.ANTHROPIC_API_KEY || ''}" ${opencodeBin} serve --port ${OPENCODE_PORT} > /tmp/opencode.log 2>&1 &`,
       {
         background: true as const,
         timeoutMs: 10_000,
@@ -85,7 +89,93 @@ export class OpenCodeService {
       }
     }
 
+    // Grab logs to help debug the failure
+    try {
+      const logResult = await sandbox.commands.run('cat /tmp/opencode.log 2>/dev/null || echo "No log file found"', { timeoutMs: 5_000 })
+      console.error('[OpenCode Service] Server startup logs:', logResult.stdout)
+    } catch { /* ignore */ }
+
     throw new Error(`OpenCode server failed to start within ${HEALTH_TIMEOUT / 1000}s`)
+  }
+
+  /**
+   * Finds the opencode binary in the sandbox, installing it if necessary.
+   * The Dockerfile installs as root so the binary may be in /root/.local/bin
+   * which isn't on the user's PATH.
+   */
+  private async resolveOpenCodeBinary(sandbox: Sandbox): Promise<string> {
+    // Common locations where opencode might be installed
+    const candidates = [
+      'opencode',                        // already in PATH
+      '/root/.local/bin/opencode',       // installed by install.sh as root
+      '/usr/local/bin/opencode',         // global install
+      '/home/user/.local/bin/opencode',  // installed as user
+    ]
+
+    for (const bin of candidates) {
+      try {
+        const result = await sandbox.commands.run(`${bin} version`, { timeoutMs: 5_000 })
+        if (result.exitCode === 0) {
+          console.log(`[OpenCode Service] Found opencode at: ${bin} (${result.stdout.trim()})`)
+          return bin
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+
+    // Not found — install it at runtime
+    console.log('[OpenCode Service] opencode not found in sandbox, installing...')
+    try {
+      // Try npm global install first (most reliable in the sandbox environment)
+      const installResult = await sandbox.commands.run(
+        'npm i -g opencode-ai@latest 2>&1 || bun install -g opencode-ai@latest 2>&1',
+        { timeoutMs: 120_000 },
+      )
+      console.log('[OpenCode Service] Install output:', installResult.stdout)
+      if (installResult.stderr) {
+        console.log('[OpenCode Service] Install stderr:', installResult.stderr)
+      }
+
+      // After install, check the common paths again
+      for (const bin of ['opencode', '/usr/local/bin/opencode', '/root/.local/bin/opencode', '/home/user/.local/bin/opencode']) {
+        try {
+          const result = await sandbox.commands.run(`${bin} version`, { timeoutMs: 5_000 })
+          if (result.exitCode === 0) {
+            console.log(`[OpenCode Service] After install, found opencode at: ${bin}`)
+            return bin
+          }
+        } catch {
+          // try next
+        }
+      }
+
+      // Fallback: try curl installer (note: no .sh suffix)
+      console.log('[OpenCode Service] npm install did not work, trying curl installer...')
+      const curlResult = await sandbox.commands.run(
+        'curl -fsSL https://opencode.ai/install | bash 2>&1',
+        { timeoutMs: 60_000 },
+      )
+      console.log('[OpenCode Service] Curl install output:', curlResult.stdout)
+
+      for (const bin of ['opencode', '/usr/local/bin/opencode', '/root/.local/bin/opencode', '/home/user/.local/bin/opencode']) {
+        try {
+          const result = await sandbox.commands.run(`${bin} version`, { timeoutMs: 5_000 })
+          if (result.exitCode === 0) {
+            console.log(`[OpenCode Service] After curl install, found opencode at: ${bin}`)
+            return bin
+          }
+        } catch {
+          // try next
+        }
+      }
+    } catch (error) {
+      console.error('[OpenCode Service] Failed to install opencode:', error)
+    }
+
+    // Last resort — return bare name and let it fail with a clear error
+    console.error('[OpenCode Service] Could not find or install opencode binary')
+    return 'opencode'
   }
 
   private async checkHealth(baseUrl: string): Promise<boolean> {
@@ -176,8 +266,9 @@ export class OpenCodeService {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              content: `[SYSTEM INSTRUCTIONS - DO NOT REPEAT]\n${systemPrompt}`,
-              role: 'system',
+              parts: [{ type: 'text', content: `[SYSTEM INSTRUCTIONS - DO NOT REPEAT]\n${systemPrompt}` }],
+              system: systemPrompt,
+              noReply: true,
             }),
             signal: AbortSignal.timeout(10_000),
           })
@@ -192,7 +283,7 @@ export class OpenCodeService {
       callbacks.onMessage(JSON.stringify({
         type: 'system',
         subtype: 'init',
-        model: request.claudeModel || 'anthropic/claude-sonnet-4-5',
+        model: request.claudeModel || 'anthropic/claude-opus-4-5',
         cwd: '/home/user',
         tools: [],
         session_id: sessionId,
@@ -233,8 +324,7 @@ export class OpenCodeService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: fullMessage,
-          role: 'user',
+          parts: [{ type: 'text', content: fullMessage }],
         }),
         signal: AbortSignal.timeout(SESSION_TIMEOUT),
       })
