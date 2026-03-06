@@ -2521,6 +2521,11 @@ function ProjectPageInternal() {
                   isWaitingForFirstMessage={!!firstMessageRef.current && messages.length === 0}
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
+                  agentType={agentType}
+                  onAgentTypeChange={(newType) => {
+                    setAgentType(newType)
+                    setSelectedModel(getDefaultModelForAgent(newType))
+                  }}
                   imageAttachments={imageAttachments}
                   onImageAttachmentsChange={setImageAttachments}
                   selectedSkills={selectedSkills}
