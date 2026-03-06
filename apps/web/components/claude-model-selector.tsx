@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -8,11 +10,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
   getClaudeModelById,
   getModelsForAgent,
+  getDefaultModelForAgent,
   type AgentType,
 } from '@/lib/claude-models'
-import { Cpu, Bot } from 'lucide-react'
+import { Settings2, Bot, Cpu, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ClaudeModelSelectorProps {
@@ -23,6 +33,11 @@ interface ClaudeModelSelectorProps {
   agentType?: AgentType
   onAgentTypeChange?: (agentType: AgentType) => void
 }
+
+const AGENTS: { id: AgentType; name: string; description: string }[] = [
+  { id: 'claude-code', name: 'Claude Code', description: "Anthropic's agent SDK" },
+  { id: 'opencode', name: 'OpenCode', description: 'Open-source coding agent' },
+]
 
 export function ClaudeModelSelector({
   value,
@@ -35,63 +50,57 @@ export function ClaudeModelSelector({
   const models = getModelsForAgent(agentType)
   const currentModel = getClaudeModelById(value)
 
+  // Compact mode: single button that opens a dialog
+  if (compact) {
+    return (
+      <CompactSelector
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        agentType={agentType}
+        onAgentTypeChange={onAgentTypeChange}
+        models={models}
+        currentModel={currentModel}
+      />
+    )
+  }
+
+  // Full mode: inline selects (used on homepage)
   return (
     <div className="flex items-center gap-1.5">
-      {/* Agent type toggle */}
       {onAgentTypeChange && (
         <Select
           value={agentType}
           onValueChange={(v) => onAgentTypeChange(v as AgentType)}
           disabled={disabled}
         >
-          <SelectTrigger
-            className={cn(
-              compact
-                ? 'h-10 border border-input text-xs border-gray-200 bg-background shadow-sm hover:bg-accent hover:text-accent-foreground w-auto'
-                : 'h-12 w-[160px]'
-            )}
-          >
+          <SelectTrigger className="h-12 w-[160px]">
             <div className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
-              <SelectValue placeholder="Agent">
+              <SelectValue>
                 {agentType === 'opencode' ? 'OpenCode' : 'Claude Code'}
               </SelectValue>
             </div>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="claude-code">
-              <div className="flex flex-col">
-                <span className="font-medium">Claude Code</span>
-                <span className="text-xs text-muted-foreground">
-                  Anthropic&apos;s agent SDK
-                </span>
-              </div>
-            </SelectItem>
-            <SelectItem value="opencode">
-              <div className="flex flex-col">
-                <span className="font-medium">OpenCode</span>
-                <span className="text-xs text-muted-foreground">
-                  Open-source coding agent
-                </span>
-              </div>
-            </SelectItem>
+            {AGENTS.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                <div className="flex flex-col">
+                  <span className="font-medium">{agent.name}</span>
+                  <span className="text-xs text-muted-foreground">{agent.description}</span>
+                </div>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}
 
-      {/* Model selector */}
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger
-          className={cn(
-            compact
-              ? 'h-10 border border-input text-xs border-gray-200 bg-background shadow-sm hover:bg-accent hover:text-accent-foreground'
-              : 'h-12 w-[200px]'
-          )}
-        >
-          <div className="flex items-center gap-2 ">
+        <SelectTrigger className="h-12 w-[200px]">
+          <div className="flex items-center gap-2">
             <Cpu className="h-4 w-4 text-muted-foreground shrink-0" />
-            <SelectValue placeholder="Select model">
-              {currentModel?.name || 'Select model'}
+            <SelectValue>
+              {currentModel?.name || models[0]?.name}
             </SelectValue>
           </div>
         </SelectTrigger>
@@ -100,14 +109,131 @@ export function ClaudeModelSelector({
             <SelectItem key={model.id} value={model.id}>
               <div className="flex flex-col">
                 <span className="font-medium">{model.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {model.description}
-                </span>
+                <span className="text-xs text-muted-foreground">{model.description}</span>
               </div>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
+  )
+}
+
+/** Compact dialog version for space-constrained layouts */
+function CompactSelector({
+  value,
+  onChange,
+  disabled,
+  agentType = 'claude-code',
+  onAgentTypeChange,
+  models,
+  currentModel,
+}: {
+  value: string
+  onChange: (modelId: string) => void
+  disabled: boolean
+  agentType: AgentType
+  onAgentTypeChange?: (agentType: AgentType) => void
+  models: ReturnType<typeof getModelsForAgent>
+  currentModel: ReturnType<typeof getClaudeModelById>
+}) {
+  const [open, setOpen] = useState(false)
+
+  const handleAgentChange = (newAgent: AgentType) => {
+    if (onAgentTypeChange) {
+      onAgentTypeChange(newAgent)
+      onChange(getDefaultModelForAgent(newAgent))
+    }
+  }
+
+  const handleModelChange = (modelId: string) => {
+    onChange(modelId)
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          className="h-10 text-xs border-gray-200 gap-1.5"
+        >
+          <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="hidden sm:inline">{currentModel?.name || models[0]?.name}</span>
+          <span className="sm:hidden">AI</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[360px]">
+        <DialogHeader>
+          <DialogTitle>Agent Setup</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          {/* Agent selector */}
+          {onAgentTypeChange && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Agent</label>
+              <div className="grid grid-cols-2 gap-2">
+                {AGENTS.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => handleAgentChange(agent.id)}
+                    className={cn(
+                      'relative flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors',
+                      agentType === agent.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/30 hover:bg-accent'
+                    )}
+                  >
+                    {agentType === agent.id && (
+                      <Check className="absolute top-2 right-2 h-3.5 w-3.5 text-primary" />
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Bot className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{agent.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{agent.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Model selector */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Model</label>
+            <div className="space-y-1.5">
+              {models.map((model) => {
+                const isSelected = value === model.id
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => handleModelChange(model.id)}
+                    className={cn(
+                      'relative flex w-full items-start rounded-lg border p-3 text-left transition-colors',
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/30 hover:bg-accent'
+                    )}
+                  >
+                    {isSelected && (
+                      <Check className="absolute top-2 right-2 h-3.5 w-3.5 text-primary" />
+                    )}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">{model.name}</span>
+                      <span className="text-xs text-muted-foreground">{model.description}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

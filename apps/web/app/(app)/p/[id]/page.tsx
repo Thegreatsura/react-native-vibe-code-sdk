@@ -102,7 +102,7 @@ function ProjectPageInternal() {
   const { selectedModel, setSelectedModel } = useClaudeModel()
 
   // Agent type selection (claude-code or opencode)
-  const { agentType, setAgentType, getDefaultModelForAgent } = useAgentType()
+  const { agentType, setAgentType } = useAgentType()
 
   // Initialize agent type from URL if coming from home page
   useEffect(() => {
@@ -2421,10 +2421,7 @@ function ProjectPageInternal() {
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
                 agentType={agentType}
-                onAgentTypeChange={(newType) => {
-                  setAgentType(newType)
-                  setSelectedModel(getDefaultModelForAgent(newType))
-                }}
+                onAgentTypeChange={setAgentType}
                 imageAttachments={imageAttachments}
                 onImageAttachmentsChange={setImageAttachments}
                 selectedSkills={selectedSkills}
@@ -2522,10 +2519,7 @@ function ProjectPageInternal() {
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
                   agentType={agentType}
-                  onAgentTypeChange={(newType) => {
-                    setAgentType(newType)
-                    setSelectedModel(getDefaultModelForAgent(newType))
-                  }}
+                  onAgentTypeChange={setAgentType}
                   imageAttachments={imageAttachments}
                   onImageAttachmentsChange={setImageAttachments}
                   selectedSkills={selectedSkills}
