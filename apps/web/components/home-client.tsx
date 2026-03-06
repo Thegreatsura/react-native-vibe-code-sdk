@@ -20,9 +20,10 @@ import { v4 as uuidv4 } from 'uuid'
 
 interface HomeClientProps {
   initialSession: any
+  opencodeEnabled?: boolean
 }
 
-export function HomeClient({ initialSession }: HomeClientProps) {
+export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -281,10 +282,10 @@ export function HomeClient({ initialSession }: HomeClientProps) {
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
                 agentType={agentType}
-                onAgentTypeChange={(newType) => {
+                onAgentTypeChange={opencodeEnabled ? (newType) => {
                   setAgentType(newType)
                   setSelectedModel(getDefaultModelForAgent(newType))
-                }}
+                } : undefined}
                 onSkillsChange={setSelectedSkills}
               />
             </div>
@@ -322,10 +323,10 @@ export function HomeClient({ initialSession }: HomeClientProps) {
                 selectedModel={selectedModel}
                 onModelChange={setSelectedModel}
                 agentType={agentType}
-                onAgentTypeChange={(newType) => {
+                onAgentTypeChange={opencodeEnabled ? (newType) => {
                   setAgentType(newType)
                   setSelectedModel(getDefaultModelForAgent(newType))
-                }}
+                } : undefined}
                 onSkillsChange={setSelectedSkills}
               />
             </div>
