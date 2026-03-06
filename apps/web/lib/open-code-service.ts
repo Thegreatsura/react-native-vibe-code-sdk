@@ -3,10 +3,11 @@
  * OpenCode's HTTP server + SSE event stream running inside the E2B sandbox.
  *
  * OpenCode runs as `opencode serve --port 4096` and exposes:
- *   POST /session          — create session
- *   POST /session/:id/message — send message
- *   GET  /session/:id/events  — SSE event stream
- *   GET  /health           — health check
+ *   POST /session                  — create session
+ *   POST /session/:id/prompt_async — send message (async, returns 204)
+ *   POST /session/:id/message      — send message (sync, blocks until done)
+ *   GET  /global/event              — global SSE event stream
+ *   GET  /global/health            — health check
  */
 
 import { Sandbox } from '@e2b/code-interpreter'
@@ -18,6 +19,16 @@ import { translateOpenCodeEvent, parseSSELine } from './open-code-events'
 import type { AppGenerationRequest, AppGenerationResponse, StreamingCallbacks } from './claude-code-service'
 
 const OPENCODE_PORT = 4096
+
+/** Converts 'anthropic/claude-opus-4-5' to { providerID: 'anthropic', modelID: 'claude-opus-4-5' } */
+function parseModelId(modelStr?: string): { providerID: string; modelID: string } {
+  const m = modelStr || 'anthropic/claude-opus-4-5'
+  const slashIdx = m.indexOf('/')
+  if (slashIdx > 0) {
+    return { providerID: m.slice(0, slashIdx), modelID: m.slice(slashIdx + 1) }
+  }
+  return { providerID: 'anthropic', modelID: m }
+}
 const HEALTH_POLL_INTERVAL = 1000
 const HEALTH_TIMEOUT = 60_000
 const SESSION_TIMEOUT = 30 * 60 * 1000 // 30 minutes
@@ -180,17 +191,32 @@ export class OpenCodeService {
 
   private async checkHealth(baseUrl: string): Promise<boolean> {
     try {
-      const resp = await fetch(`${baseUrl}/health`, {
+      const resp = await fetch(`${baseUrl}/global/health`, {
         signal: AbortSignal.timeout(3000),
       })
       return resp.ok
     } catch {
-      return false
+      // Fallback: try legacy /health endpoint
+      try {
+        const resp = await fetch(`${baseUrl}/health`, {
+          signal: AbortSignal.timeout(3000),
+        })
+        return resp.ok
+      } catch {
+        return false
+      }
     }
   }
 
   /**
    * Main streaming method — mirrors ClaudeCodeService.generateAppStreaming()
+   *
+   * Flow:
+   * 1. Create session via POST /session
+   * 2. Inject system prompt via POST /session/:id/message (sync, noReply)
+   * 3. Subscribe to global SSE stream at GET /event
+   * 4. Send user message via POST /session/:id/prompt_async (returns 204)
+   * 5. Process SSE events until message.completed is received
    */
   async generateAppStreaming(
     request: AppGenerationRequest,
@@ -225,8 +251,6 @@ export class OpenCodeService {
         fullMessage += '\n--- END VISUAL EDIT SELECTION ---'
       }
 
-      // Inject system prompt on first message
-      const isFirstMessage = !request.sessionId
       let sessionId = request.sessionId
 
       // Create or resume session
@@ -262,24 +286,25 @@ export class OpenCodeService {
 
         const systemPrompt = getPromptWithCloudStatus(cloudEnabled)
         try {
-          await fetch(`${baseUrl}/session/${sessionId}/message`, {
+          const sysResp = await fetch(`${baseUrl}/session/${sessionId}/message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              parts: [{ type: 'text', content: `[SYSTEM INSTRUCTIONS - DO NOT REPEAT]\n${systemPrompt}` }],
+              parts: [{ type: 'text', text: `[SYSTEM INSTRUCTIONS - DO NOT REPEAT]\n${systemPrompt}` }],
+              model: parseModelId(request.claudeModel),
               system: systemPrompt,
               noReply: true,
             }),
-            signal: AbortSignal.timeout(10_000),
+            signal: AbortSignal.timeout(30_000),
           })
-          console.log('[OpenCode Service] System prompt injected')
+          console.log('[OpenCode Service] System prompt injected, status:', sysResp.status)
         } catch (e) {
           console.warn('[OpenCode Service] Failed to inject system prompt:', e)
           // Not fatal — continue
         }
       }
 
-      // Emit init message
+      // Emit init message (no prefix — raw JSON for the UI parser)
       callbacks.onMessage(JSON.stringify({
         type: 'system',
         subtype: 'init',
@@ -289,51 +314,56 @@ export class OpenCodeService {
         session_id: sessionId,
       }))
 
-      // Subscribe to SSE events
+      // Subscribe to global SSE events BEFORE sending the message
       const abortController = new AbortController()
       const timeout = setTimeout(() => abortController.abort(), SESSION_TIMEOUT)
 
       let completionDetected = false
       let capturedSessionId = sessionId
 
-      // Start SSE listener before sending the message
       const ssePromise = this.consumeSSEStream(
-        `${baseUrl}/session/${sessionId}/events`,
+        `${baseUrl}/global/event`,
         abortController.signal,
+        sessionId!,
         (event) => {
           const slimMessages = translateOpenCodeEvent(event)
           for (const msg of slimMessages) {
             if (msg.type === 'result') {
               completionDetected = true
               capturedSessionId = (msg as any).session_id || capturedSessionId
+              // Abort SSE stream since we got the completion
+              abortController.abort()
             }
-            callbacks.onMessage(`Streaming: ${JSON.stringify(msg)}`)
+            // Emit raw JSON (no prefix) so the UI parser can split by newlines
+            callbacks.onMessage(JSON.stringify(msg))
           }
         },
         () => {
-          // SSE stream ended — treat as completion
           if (!completionDetected) {
             completionDetected = true
           }
         },
       )
 
-      // Send the actual user message
-      console.log('[OpenCode Service] Sending user message...')
-      const messageResp = await fetch(`${baseUrl}/session/${sessionId}/message`, {
+      // Send the actual user message ASYNC (returns 204 immediately)
+      console.log('[OpenCode Service] Sending user message (async)...')
+      const messageResp = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parts: [{ type: 'text', content: fullMessage }],
+          parts: [{ type: 'text', text: fullMessage }],
+          model: parseModelId(request.claudeModel),
         }),
-        signal: AbortSignal.timeout(SESSION_TIMEOUT),
+        signal: AbortSignal.timeout(30_000),
       })
 
-      if (!messageResp.ok) {
-        throw new Error(`Failed to send message: ${messageResp.status} ${await messageResp.text()}`)
+      if (!messageResp.ok && messageResp.status !== 204) {
+        const errText = await messageResp.text().catch(() => 'unknown error')
+        throw new Error(`Failed to send message: ${messageResp.status} ${errText}`)
       }
+      console.log('[OpenCode Service] Message sent, status:', messageResp.status)
 
-      // Wait for SSE to finish (agent done processing)
+      // Wait for SSE to finish (agent done processing, signaled by session.idle)
       await ssePromise
       clearTimeout(timeout)
 
@@ -368,11 +398,12 @@ export class OpenCodeService {
   }
 
   /**
-   * Consumes an SSE stream, calling onEvent for each parsed event.
+   * Consumes the global SSE stream, filtering events for our session.
    */
   private async consumeSSEStream(
     url: string,
     signal: AbortSignal,
+    sessionId: string,
     onEvent: (event: any) => void,
     onEnd: () => void,
   ): Promise<void> {
@@ -387,6 +418,8 @@ export class OpenCodeService {
         onEnd()
         return
       }
+
+      console.log('[OpenCode Service] SSE stream connected')
 
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
@@ -403,6 +436,23 @@ export class OpenCodeService {
         for (const line of lines) {
           const event = parseSSELine(line)
           if (event) {
+            // Log all non-heartbeat events for debugging
+            if (event.type !== 'server.heartbeat') {
+              console.log('[OpenCode Service] SSE event:', event.type, JSON.stringify(event).slice(0, 200))
+            }
+
+            // Filter: only process events for our session
+            const eventSessionId =
+              event.properties?.sessionID ??
+              event.properties?.sessionId ??
+              event.properties?.session_id ??
+              event.sessionID ??
+              event.sessionId
+
+            if (eventSessionId && eventSessionId !== sessionId) {
+              continue
+            }
+
             onEvent(event)
           }
         }
@@ -415,7 +465,7 @@ export class OpenCodeService {
       }
     } catch (error) {
       if (signal.aborted) {
-        console.log('[OpenCode Service] SSE stream aborted (expected)')
+        console.log('[OpenCode Service] SSE stream ended (completion detected)')
       } else {
         console.error('[OpenCode Service] SSE stream error:', error)
       }

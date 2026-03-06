@@ -51,7 +51,7 @@ import Loading from './loading'
 
 function ProjectPageInternal() {
   // Toggle to true to force expo-testing template during development
-  const EXPO_TESTING = true
+  const EXPO_TESTING = false
 
   const params = useParams()
   const projectID = params?.id as string
