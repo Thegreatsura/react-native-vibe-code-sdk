@@ -81,62 +81,71 @@ export async function POST(request: Request) {
           const errorMatch = text.match(/<script id="_expo-static-error"[^>]*>([\s\S]*?)<\/script>/)
           if (errorMatch) {
             const errorData = JSON.parse(errorMatch[1])
-            console.log('[check-ngrok-health] Expo error JSON structure:', JSON.stringify(errorData).substring(0, 500))
-            const firstLog = errorData?.logs?.[0]
+            console.log('[check-ngrok-health] Expo error JSON structure:', JSON.stringify(errorData).substring(0, 1000))
 
-            // Strategy 1: Static error with message object (e.g. { message: { message: "...", name: "SyntaxError" } })
-            if (firstLog?.type === 'static' && firstLog.message) {
-              if (typeof firstLog.message === 'string') {
-                expoError = firstLog.message
-              } else if (typeof firstLog.message?.message === 'string') {
-                // Include error name if available (e.g. "SyntaxError: ...")
-                const name = firstLog.message.name
-                const msg = firstLog.message.message
-                expoError = name && !msg.startsWith(name) ? `${name}: ${msg}` : msg
-              }
-            }
+            // Build a comprehensive error message from all available data in the logs
+            const parts: string[] = []
 
-            // Strategy 2: Symbolicated stack error
-            if (!expoError && firstLog?.symbolicated?.stack?.error?.message) {
-              expoError = firstLog.symbolicated.stack.error.message
-            }
+            for (const log of (errorData?.logs || [])) {
+              const msg = log?.message
 
-            // Strategy 3: Try any log entry (not just the first)
-            if (!expoError && Array.isArray(errorData?.logs)) {
-              for (const log of errorData.logs) {
-                const msg = log?.message
-                if (typeof msg === 'string' && msg.length > 0) {
-                  expoError = msg
-                  break
+              // Extract the main error message
+              if (typeof msg === 'string') {
+                parts.push(msg)
+              } else if (msg && typeof msg === 'object') {
+                // Build error header: "SyntaxError: message text"
+                const name = msg.name || ''
+                const message = msg.message || ''
+                if (message) {
+                  const header = name && !message.startsWith(name) ? `${name}: ${message}` : message
+                  parts.push(header)
                 }
-                if (typeof msg?.message === 'string' && msg.message.length > 0) {
-                  expoError = msg.message
-                  break
+
+                // Include file location if available
+                if (msg.fileName || msg.loc) {
+                  const file = msg.fileName || ''
+                  const loc = msg.loc ? `:${msg.loc.line}:${msg.loc.column}` : ''
+                  if (file) parts.push(`File: ${file}${loc}`)
+                }
+
+                // Include code frame / source context if available
+                if (msg.codeFrame) {
+                  parts.push(msg.codeFrame)
+                }
+
+                // Include stack trace if available
+                if (msg.stack && typeof msg.stack === 'string') {
+                  parts.push(msg.stack)
+                }
+              }
+
+              // Also check symbolicated stack
+              if (log?.symbolicated?.stack?.error) {
+                const stackErr = log.symbolicated.stack.error
+                if (stackErr.message && !parts.some(p => p.includes(stackErr.message))) {
+                  parts.push(stackErr.message)
+                }
+                if (stackErr.stack) {
+                  parts.push(stackErr.stack)
                 }
               }
             }
 
-            // Strategy 4: Deep search — recursively find any string that looks like an error
-            if (!expoError) {
-              const jsonStr = JSON.stringify(errorData)
-              const deepMatch = jsonStr.match(/(SyntaxError|TypeError|ReferenceError|RangeError|Error)[:\s]+([^"]{10,200})/)
-              if (deepMatch) {
-                expoError = deepMatch[0].replace(/\\n/g, '\n').replace(/\\"/g, '"')
-              }
+            if (parts.length > 0) {
+              expoError = parts.join('\n\n')
             }
           }
         } catch (parseErr) {
           console.log('[check-ngrok-health] Failed to parse Expo error JSON:', parseErr)
         }
 
-        // Fallback: try extracting error text from the raw HTML body
+        // Fallback: try extracting from the raw HTML body (strip tags)
         if (!expoError) {
-          // Strip HTML tags and look for error-like text
-          const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-          const rawErrorMatch = stripped.match(/(SyntaxError|TypeError|ReferenceError|RangeError|Error)[\s:]+(.{10,300})/)
+          const stripped = text.replace(/<[^>]+>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ')
+          const rawErrorMatch = stripped.match(/(SyntaxError|TypeError|ReferenceError|RangeError)[:\s][\s\S]{10,2000}/)
           if (rawErrorMatch) {
-            expoError = rawErrorMatch[0].trim().substring(0, 500)
-            console.log('[check-ngrok-health] Extracted error from stripped HTML:', expoError.substring(0, 150))
+            expoError = rawErrorMatch[0].trim()
+            console.log('[check-ngrok-health] Extracted error from stripped HTML')
           }
         }
 
@@ -153,13 +162,13 @@ export async function POST(request: Request) {
       // Also check for Expo/Metro "Server Error" pages that don't use _expo-static-error
       // These show "Server Error" with SyntaxError/TypeError etc. in the HTML
       if (!expoError && text.includes('Server Error')) {
-        // Strip HTML tags first to get clean text, then search for error patterns
-        const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-        const serverErrorMatch = stripped.match(/(SyntaxError|TypeError|ReferenceError|RangeError):\s*(.{10,300})/)
+        // Strip HTML tags and decode entities to get clean text with full error + source context
+        const stripped = text.replace(/<[^>]+>/g, '\n').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+        const serverErrorMatch = stripped.match(/(SyntaxError|TypeError|ReferenceError|RangeError)[:\s][\s\S]{10,2000}/)
         if (serverErrorMatch) {
           console.log('[check-ngrok-health] ⚠️ Expo Server Error page detected')
           tunnelStatus = 'connected'
-          expoError = serverErrorMatch[0].trim().substring(0, 500)
+          expoError = serverErrorMatch[0].trim()
           console.log('[check-ngrok-health] Extracted error from Server Error page:', expoError.substring(0, 150))
         }
       }
