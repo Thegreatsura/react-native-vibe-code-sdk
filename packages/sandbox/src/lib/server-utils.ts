@@ -212,8 +212,9 @@ export async function startExpoServer(
 
   // Start the web server in background
   // Build the command based on tunnel mode
+  // In LAN mode, use `bunx expo start` directly to bypass the ngrok-patched start script
   const startCommand = tunnelMode === 'lan'
-    ? `cd /home/user/app && CI=false bun install && EXPO_PACKAGER_PROXY_URL=${ngrokUrl} bun run start -- --lan --web`
+    ? `cd /home/user/app && CI=false bun install && EXPO_PACKAGER_PROXY_URL=${ngrokUrl} bunx expo start --lan --web`
     : `cd /home/user/app && CI=false bun install && bun run start -- --ngrokurl ${ngrokDomain} --tunnel --web`
 
   console.log('[Server Utils] Starting with command:', startCommand)
@@ -321,7 +322,7 @@ export async function startExpoServer(
   if (tunnelMode === 'lan' && webBundled) {
     console.log('[Server Utils] Starting ngrok as separate background process (LAN mode)...')
     try {
-      const ngrokStartCmd = `ngrok http --domain=${ngrokDomain}.ngrok.dev --host-header=localhost 8081`
+      const ngrokStartCmd = `ngrok http --url=${ngrokDomain}.ngrok.dev 8081`
       console.log('[Server Utils] Running:', ngrokStartCmd)
       sandbox.commands.run(ngrokStartCmd, {
         background: true,

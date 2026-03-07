@@ -848,6 +848,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
                     setResult({
                       url: urlWithTimestamp,
                       ngrokUrl: serverResult.ngrokUrl,
+                      tunnelMode: serverResult.tunnelMode,
                       sbxId: currentProject.sandboxId,
                       projectId: currentProject.id,
                       projectTitle: currentProject.title,
@@ -919,6 +920,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
             setResult({
               url: urlWithTimestamp,
               ngrokUrl: serverResult.ngrokUrl,
+              tunnelMode: serverResult.tunnelMode,
               sbxId: currentProject.sandboxId,
               projectId: currentProject.id,
               projectTitle: currentProject.title,
@@ -1105,6 +1107,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
             setResult({
               url: urlWithTimestamp,
               ngrokUrl: serverResult.ngrokUrl,
+              tunnelMode: serverResult.tunnelMode,
               sbxId: currentProject.sandboxId,
               projectId: currentProject.id,
               projectTitle: currentProject.title,
@@ -1366,6 +1369,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
                   setResult({
                     url: urlWithTimestamp,
                     ngrokUrl: serverResult.ngrokUrl,
+                    tunnelMode: serverResult.tunnelMode,
                     sbxId: currentProject.sandboxId,
                     projectId: currentProject.id,
                     projectTitle: currentProject.title,
@@ -1564,6 +1568,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
         const newResult = {
           url: serverResult.url,
           ngrokUrl: serverResult.ngrokUrl,
+          tunnelMode: serverResult.tunnelMode,
           sbxId: currentProject.sandboxId!,
           projectId: currentProject.id,
           projectTitle: currentProject.title,

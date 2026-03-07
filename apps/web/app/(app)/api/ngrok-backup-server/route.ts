@@ -233,7 +233,7 @@ async function startBackupServer(
         await new Promise(resolve => setTimeout(resolve, 2000))
 
         // Start ngrok with the backup port
-        const ngrokStartCmd = `ngrok http --domain=${ngrokDomain}.ngrok.dev ${BACKUP_PORT} > /tmp/ngrok.log 2>&1 &`
+        const ngrokStartCmd = `ngrok http --url=${ngrokDomain}.ngrok.dev ${BACKUP_PORT} > /tmp/ngrok.log 2>&1 &`
         console.log('[ngrok-backup-server] Running:', ngrokStartCmd)
         await sandbox.commands.run(ngrokStartCmd, { timeoutMs: 10000, background: true })
 
@@ -409,7 +409,7 @@ async function restartNgrokOnly(
     }
 
     // Step 3: Start ngrok as separate background process pointing at port 8081
-    const ngrokStartCmd = `ngrok http --domain=${ngrokDomain}.ngrok.dev --host-header=localhost ${PRIMARY_PORT}`
+    const ngrokStartCmd = `ngrok http --url=${ngrokDomain}.ngrok.dev ${PRIMARY_PORT}`
     console.log('[ngrok-backup-server] Starting ngrok with command:', ngrokStartCmd)
 
     sandbox.commands.run(ngrokStartCmd, {
