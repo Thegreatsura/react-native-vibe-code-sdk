@@ -212,8 +212,11 @@ export function useNgrokHealthCheck({
   // Main polling effect - only starts after serverReady is true
   useEffect(() => {
     // Don't start polling until initial server setup is complete
-    if (!enabled || !sandboxId || !ngrokUrl || !serverReady) {
-      if (!serverReady && enabled && sandboxId && ngrokUrl) {
+    // In LAN mode, skip ngrok health checks entirely — there's no ngrok tunnel to monitor
+    if (!enabled || !sandboxId || !ngrokUrl || !serverReady || tunnelMode === 'lan') {
+      if (tunnelMode === 'lan') {
+        console.log('[useNgrokHealthCheck] LAN mode active, skipping ngrok health checks')
+      } else if (!serverReady && enabled && sandboxId && ngrokUrl) {
         console.log('[useNgrokHealthCheck] Waiting for initial server setup to complete before starting health checks...')
       }
       return
@@ -225,8 +228,8 @@ export function useNgrokHealthCheck({
       if (!isHealthy && !healthState.isStartingBackup) {
         console.log('[useNgrokHealthCheck] Ngrok unhealthy, consecutive failures:', consecutiveFailuresRef.current)
 
-        // Trigger backup after 1 failure (immediate response)
-        if (consecutiveFailuresRef.current >= 1) {
+        // Trigger backup after 3 consecutive failures to avoid false positives
+        if (consecutiveFailuresRef.current >= 3) {
           await triggerBackupServer()
         }
       }
@@ -252,7 +255,7 @@ export function useNgrokHealthCheck({
       }
       console.log('[useNgrokHealthCheck] Stopped polling')
     }
-  }, [enabled, sandboxId, ngrokUrl, serverReady, pollingInterval, checkNgrokHealth, triggerBackupServer, healthState.isStartingBackup])
+  }, [enabled, sandboxId, ngrokUrl, serverReady, pollingInterval, checkNgrokHealth, triggerBackupServer, healthState.isStartingBackup, tunnelMode])
 
   const isNgrokHealthy = healthState.isBackupActive
     ? healthState.ngrokStatus[BACKUP_PORT] === 'connected'

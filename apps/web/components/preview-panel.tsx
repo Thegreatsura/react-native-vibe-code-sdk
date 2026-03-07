@@ -517,10 +517,18 @@ export function PreviewPanel({
   }
 
   // CONSOLIDATED HEALTH CHECK - Single polling mechanism for all checks
+  // Uses a ref to track iframe load state without causing effect re-runs
+  const isIframeLoadedRef = useRef(false)
+  useEffect(() => {
+    isIframeLoadedRef.current = !isIframeLoading
+  }, [isIframeLoading])
+
   useEffect(() => {
     if (!actualPreviewUrl || !sandboxId) return
 
     let checkCount = 0
+    let consecutiveSandboxFailures = 0
+    let consecutiveExpoFailures = 0
     let abortController: AbortController | null = null
 
     const checkHealth = async () => {
@@ -538,8 +546,21 @@ export function PreviewPanel({
         setIsSandboxDown(!isAlive)
 
         if (!isAlive && sandboxId) {
-          // Sandbox is down - trigger automatic recreation (with retry limit)
-          console.log('[PreviewPanel] Sandbox is down, checking if recreation should be attempted')
+          consecutiveSandboxFailures++
+
+          // If the iframe is loaded and working, the user can see the app — don't take destructive action
+          if (isIframeLoadedRef.current) {
+            console.log('[PreviewPanel] Sandbox ping failed but iframe is loaded — skipping recreation')
+            return
+          }
+
+          // Only trigger recreation after 3 consecutive failures to avoid false positives
+          if (consecutiveSandboxFailures < 3) {
+            console.log(`[PreviewPanel] Sandbox ping failed (${consecutiveSandboxFailures}/3), waiting for more failures before acting`)
+            return
+          }
+
+          console.log('[PreviewPanel] Sandbox is down after 3 consecutive failures, checking if recreation should be attempted')
 
           // Only trigger if not already recreating AND haven't exceeded max retries
           if (!isRecreatingSandboxRef.current && projectId && userId && recreationAttemptsRef.current < maxRecreationRetries) {
@@ -548,6 +569,7 @@ export function PreviewPanel({
             console.log('[PreviewPanel] Skipping recreation - max retries exceeded')
           }
         } else if (isAlive) {
+          consecutiveSandboxFailures = 0
           setIsSandboxInitializing(false)
           // Sandbox came back - reset recreation state
           if (recreationAttemptsRef.current > 0) {
@@ -560,14 +582,27 @@ export function PreviewPanel({
           if (ngrokUrl) {
             const expoServerAlive = await checkExpoServer(ngrokUrl)
 
-            if (!expoServerAlive && !isServerDown) {
-              setIsServerDown(true)
-              // Auto-restart only on first detection
-              if (!isRestartingServer && projectId && sandboxId) {
-                handleRestartServer()
+            if (!expoServerAlive) {
+              consecutiveExpoFailures++
+
+              // If iframe is loaded, the app is visible to user — don't restart
+              if (isIframeLoadedRef.current) {
+                console.log('[PreviewPanel] Expo server check failed but iframe is loaded — skipping restart')
+                return
               }
-            } else if (expoServerAlive && isServerDown) {
-              setIsServerDown(false)
+
+              // Only act after 3 consecutive failures
+              if (consecutiveExpoFailures >= 3 && !isServerDown) {
+                setIsServerDown(true)
+                if (!isRestartingServer && projectId && sandboxId) {
+                  handleRestartServer()
+                }
+              }
+            } else {
+              consecutiveExpoFailures = 0
+              if (isServerDown) {
+                setIsServerDown(false)
+              }
             }
           }
         }
@@ -576,14 +611,12 @@ export function PreviewPanel({
       }
     }
 
-    // Initial check after iframe has time to load
-    const initialTimeout = setTimeout(checkHealth, 2000)
+    // Initial check — wait 20s to give the app time to fully initialize
+    const initialTimeout = setTimeout(checkHealth, 20000)
 
-    // Smart polling with exponential backoff
-    // Check frequently at first, then slow down
+    // Polling: every 30s for first few checks, then every 60s
     const getInterval = () => {
-      if (checkCount < 3) return 10000  // First 3 checks: every 10s
-      if (checkCount < 6) return 30000  // Next 3 checks: every 30s
+      if (checkCount < 3) return 30000  // First 3 checks: every 30s
       return 60000                       // After that: every 60s
     }
 
@@ -592,7 +625,7 @@ export function PreviewPanel({
       interval = setInterval(() => {
         checkHealth()
         // Reschedule with new interval if needed
-        if (checkCount === 3 || checkCount === 6) {
+        if (checkCount === 3) {
           clearInterval(interval)
           scheduleNext()
         }
