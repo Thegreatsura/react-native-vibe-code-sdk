@@ -4,6 +4,7 @@ import { startExpoServer } from '@/lib/server-utils'
 import { connectSandbox } from '@/lib/sandbox-connect'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { tunnelMode as tunnelModeFlag } from '@/flags'
 
 export const maxDuration = 120
 
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
     // Start Expo server for React Native projects
     if (project.template === 'react-native-expo') {
       try {
-        const serverResult = await startExpoServer(sandbox, project.id)
+        const currentTunnelMode = await tunnelModeFlag()
+        const serverResult = await startExpoServer(sandbox, project.id, undefined, currentTunnelMode as any)
         return Response.json({
           success: true,
           projectId: project.id,
@@ -104,6 +106,7 @@ export async function POST(req: NextRequest) {
           url: serverResult.url,
           serverReady: serverResult.serverReady,
           cached: false,
+          tunnelMode: currentTunnelMode,
         })
       } catch (error) {
         console.log('Error starting Expo server:', error)

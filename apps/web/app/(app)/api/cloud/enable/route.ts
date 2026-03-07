@@ -13,6 +13,7 @@ import { pusherServer } from '@/lib/pusher'
 import { provisionManagedConvexProject } from '@/lib/convex/management-api'
 import { updateSandboxEnvFile } from '@/lib/convex/sandbox-utils'
 import { startExpoServer } from '@/lib/server-utils'
+import { tunnelMode as tunnelModeFlag } from '@/flags'
 
 // Convex root config file
 const CONVEX_JSON = `{
@@ -360,7 +361,8 @@ export async function POST(request: NextRequest) {
     // Metro bundles env vars at build time, so we need to restart the server
     console.log('[Cloud Enable] Restarting Expo server to pick up new env variables...')
     try {
-      await startExpoServer(sandbox, projectId)
+      const currentTunnelMode = await tunnelModeFlag()
+      await startExpoServer(sandbox, projectId, undefined, currentTunnelMode as any)
       console.log('[Cloud Enable] Expo server restarted successfully')
     } catch (error) {
       console.error('[Cloud Enable] Failed to restart Expo server:', error)

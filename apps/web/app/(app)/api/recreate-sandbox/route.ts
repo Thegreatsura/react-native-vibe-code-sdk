@@ -4,6 +4,7 @@ import { startExpoServer } from '@/lib/server-utils'
 import { Sandbox } from '@e2b/code-interpreter'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { tunnelMode as tunnelModeFlag } from '@/flags'
 
 export const maxDuration = 300 // 5 minutes for full recreation
 
@@ -274,8 +275,9 @@ echo "Repository cloned successfully"
       if (checkProjectType.stdout.includes('expo') || checkProjectType.stdout.includes('react-native')) {
         // Start Expo server
         console.log('[Recreate Sandbox] Starting Expo server...')
-        const serverResult = await startExpoServer(sandbox, project.id)
-        
+        const currentTunnelMode = await tunnelModeFlag()
+        const serverResult = await startExpoServer(sandbox, project.id, undefined, currentTunnelMode as any)
+
         // Update project with server status
         await db
           .update(projects)
@@ -299,6 +301,7 @@ echo "Repository cloned successfully"
           ngrokUrl: serverResult.ngrokUrl,
           serverReady: serverResult.serverReady,
           recreated: true,
+          tunnelMode: currentTunnelMode,
         })
       } else {
         // For non-Expo projects, just return the sandbox URL

@@ -8,3 +8,11 @@ export const opencodeEnabled = flag<boolean>({
     ? { adapter: vercelAdapter() }
     : { decide: () => false }),
 })
+
+export const tunnelMode = flag<string>({
+  key: 'tunnelMode',
+  defaultValue: 'ngrok-patch',
+  ...(process.env.FLAGS
+    ? { adapter: vercelAdapter() }
+    : { decide: () => 'ngrok-patch' }),
+})

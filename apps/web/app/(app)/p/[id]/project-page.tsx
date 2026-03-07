@@ -551,6 +551,7 @@ export function ProjectPageInternal({ opencodeEnabled = false }: { opencodeEnabl
     enabled: !!currentProject?.sandboxId && !!session?.user?.id,
     serverReady: !!(result as any)?.url && !isPreviewLoading, // Only start after initial server is ready
     pollingInterval: 60000, // 60 seconds
+    tunnelMode: (result as any)?.tunnelMode || 'ngrok-patch',
     // When backup server starts successfully, update the preview URL
     onBackupServerReady: (newSandboxUrl, newNgrokUrl) => {
       console.log('[Project] Backup server ready, updating preview URL:', newSandboxUrl)

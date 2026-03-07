@@ -30,4 +30,4 @@ export {
 } from './generate-manifest'
 
 // Server utilities
-export { startExpoServer } from './server-utils'
+export { startExpoServer, type TunnelMode } from './server-utils'

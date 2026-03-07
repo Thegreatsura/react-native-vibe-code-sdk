@@ -6,6 +6,7 @@ import { Octokit } from '@octokit/rest'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { inngest } from '@/lib/inngest'
+import { tunnelMode as tunnelModeFlag } from '@/flags'
 
 export const maxDuration = 300
 
@@ -186,7 +187,8 @@ git pull origin main || git pull origin master || echo "No remote content to pul
     // Start Expo server for React Native projects
     if (project.template === 'react-native-expo') {
       try {
-        const serverResult = await startExpoServer(sandbox, project.id)
+        const currentTunnelMode = await tunnelModeFlag()
+        const serverResult = await startExpoServer(sandbox, project.id, undefined, currentTunnelMode as any)
         return Response.json({
           success: true,
           projectId: project.id,
@@ -195,6 +197,7 @@ git pull origin main || git pull origin master || echo "No remote content to pul
           repositoryName,
           url: serverResult.url,
           serverReady: serverResult.serverReady,
+          tunnelMode: currentTunnelMode,
         })
       } catch (error) {
         console.log('[Recreate Container] Error starting Expo server:', error)

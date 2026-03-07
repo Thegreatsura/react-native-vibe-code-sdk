@@ -10,6 +10,7 @@ interface BackupServerRequest {
   projectId: string
   userId: string
   action: 'start_backup' | 'cleanup_and_restart' | 'kill_backup'
+  tunnelMode?: string
 }
 
 interface BackupServerResponse {
@@ -28,7 +29,7 @@ const NGROK_AUTH_TOKEN = process.env.NGROK_AUTHTOKEN!
 export async function POST(request: Request) {
   try {
     const body: BackupServerRequest = await request.json()
-    const { sandboxId, projectId, userId, action } = body
+    const { sandboxId, projectId, userId, action, tunnelMode } = body
 
     if (!sandboxId || !projectId || !userId || !action) {
       return NextResponse.json<BackupServerResponse>(
@@ -70,9 +71,15 @@ export async function POST(request: Request) {
 
     switch (action) {
       case 'start_backup':
+        if (tunnelMode === 'lan') {
+          return await restartNgrokOnly(sandbox, sandboxId, projectId, ngrokDomain, ngrokUrl)
+        }
         return await startBackupServer(sandbox, sandboxId, projectId, ngrokDomain, ngrokUrl)
 
       case 'cleanup_and_restart':
+        if (tunnelMode === 'lan') {
+          return await restartNgrokOnly(sandbox, sandboxId, projectId, ngrokDomain, ngrokUrl)
+        }
         return await cleanupAndRestart(sandbox, sandboxId, projectId, ngrokDomain, ngrokUrl)
 
       case 'kill_backup':
@@ -369,6 +376,140 @@ async function cleanupAndRestart(
     console.error('[ngrok-backup-server] Cleanup and restart failed:', error)
     return NextResponse.json<BackupServerResponse>(
       { success: false, error: 'Cleanup and restart failed' },
+      { status: 500 }
+    )
+  }
+}
+
+async function restartNgrokOnly(
+  sandbox: Sandbox,
+  sandboxId: string,
+  projectId: string,
+  ngrokDomain: string,
+  ngrokUrl: string
+): Promise<NextResponse<BackupServerResponse>> {
+  console.log('[ngrok-backup-server] LAN mode: restarting only ngrok (Expo stays running)...')
+
+  try {
+    // Step 1: Kill existing ngrok processes
+    console.log('[ngrok-backup-server] Killing existing ngrok processes...')
+    try {
+      await sandbox.commands.run('pkill -9 ngrok || true', { timeoutMs: 5000 })
+      await new Promise(resolve => setTimeout(resolve, 2000))
+    } catch (error) {
+      console.log('[ngrok-backup-server] No ngrok processes to kill')
+    }
+
+    // Step 2: Configure ngrok auth token
+    console.log('[ngrok-backup-server] Configuring ngrok auth token...')
+    try {
+      await sandbox.commands.run(`ngrok config add-authtoken ${NGROK_AUTH_TOKEN}`, { timeoutMs: 5000 })
+    } catch (error) {
+      console.log('[ngrok-backup-server] Failed to configure ngrok:', error)
+    }
+
+    // Step 3: Start ngrok as separate background process pointing at port 8081
+    const ngrokStartCmd = `ngrok http --domain=${ngrokDomain}.ngrok.dev --host-header=localhost ${PRIMARY_PORT}`
+    console.log('[ngrok-backup-server] Starting ngrok with command:', ngrokStartCmd)
+
+    sandbox.commands.run(ngrokStartCmd, {
+      background: true,
+      timeoutMs: 3600000,
+      onStdout: (data: string) => {
+        console.log('[ngrok-backup-server] NGROK STDOUT:', data)
+      },
+      onStderr: (data: string) => {
+        console.log('[ngrok-backup-server] NGROK STDERR:', data)
+      },
+    }).catch(err => console.log('[ngrok-backup-server] Ngrok process error:', err))
+
+    // Step 4: Wait for ngrok to establish tunnel
+    await new Promise(resolve => setTimeout(resolve, 5000))
+
+    // Step 5: Verify ngrok tunnel via API
+    let ngrokWorking = false
+    try {
+      const ngrokApiCheck = await sandbox.commands.run(
+        `curl -s http://localhost:4040/api/tunnels 2>/dev/null || echo "{}"`,
+        { timeoutMs: 10000 }
+      )
+      console.log('[ngrok-backup-server] Ngrok API response:', ngrokApiCheck.stdout.substring(0, 500))
+
+      if (ngrokApiCheck.stdout.includes('public_url')) {
+        console.log('[ngrok-backup-server] ✅ Ngrok tunnel found in API')
+        ngrokWorking = true
+      }
+    } catch (error) {
+      console.log('[ngrok-backup-server] Ngrok API check failed:', error)
+    }
+
+    // Step 6: Final verification via external fetch
+    if (ngrokWorking) {
+      try {
+        const response = await fetch(ngrokUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'BackupServerHealthCheck/1.0' },
+          signal: AbortSignal.timeout(10000),
+        })
+
+        const text = await response.text()
+        const ngrokErrorPatterns = ['ERR_NGROK', 'Tunnel not found', 'failed to complete tunnel']
+        const hasNgrokError = ngrokErrorPatterns.some(pattern =>
+          text.toLowerCase().includes(pattern.toLowerCase())
+        )
+
+        if (hasNgrokError) {
+          console.log('[ngrok-backup-server] ❌ Ngrok URL returning error page')
+          ngrokWorking = false
+        } else if (response.ok || response.status === 404) {
+          console.log('[ngrok-backup-server] ✅ Ngrok URL is working!')
+        } else {
+          console.log('[ngrok-backup-server] ⚠️ Ngrok URL returned status:', response.status)
+        }
+      } catch (fetchError: any) {
+        console.log('[ngrok-backup-server] ❌ Failed to test ngrok URL:', fetchError.message)
+        ngrokWorking = false
+      }
+    }
+
+    if (!ngrokWorking) {
+      return NextResponse.json<BackupServerResponse>({
+        success: false,
+        error: 'Ngrok tunnel failed to reconnect (LAN mode)',
+      })
+    }
+
+    // Expo is still on PRIMARY_PORT, get its E2B URL
+    const publicHost = sandbox.getHost(PRIMARY_PORT)
+    const sandboxUrl = `https://${publicHost}?sandboxId=${sandboxId}`
+
+    // Update database
+    try {
+      await db
+        .update(projects)
+        .set({
+          sandboxUrl: sandboxUrl,
+          ngrokUrl: ngrokUrl,
+          serverReady: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, projectId))
+      console.log('[ngrok-backup-server] ✅ Database updated (LAN mode)')
+    } catch (error) {
+      console.error('[ngrok-backup-server] Failed to update database:', error)
+    }
+
+    return NextResponse.json<BackupServerResponse>({
+      success: true,
+      backupPort: PRIMARY_PORT,
+      ngrokUrl: ngrokUrl,
+      sandboxUrl: sandboxUrl,
+      message: 'Ngrok restarted successfully (Expo still running)',
+    })
+  } catch (error) {
+    console.error('[ngrok-backup-server] LAN mode restart failed:', error)
+    return NextResponse.json<BackupServerResponse>(
+      { success: false, error: 'Failed to restart ngrok (LAN mode)' },
       { status: 500 }
     )
   }

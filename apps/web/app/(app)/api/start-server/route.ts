@@ -4,6 +4,7 @@ import { startExpoServer } from '@/lib/server-utils'
 import { connectSandbox } from '@/lib/sandbox-connect'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import { tunnelMode as tunnelModeFlag } from '@/flags'
 
 export const maxDuration = 120 // 2 minutes for server start
 
@@ -111,7 +112,8 @@ export async function POST(req: NextRequest) {
     // Start Expo server
     try {
       console.log('Starting Expo server...')
-      const serverResult = await startExpoServer(sandbox, projectId)
+      const currentTunnelMode = await tunnelModeFlag()
+      const serverResult = await startExpoServer(sandbox, projectId, undefined, currentTunnelMode as any)
 
       console.log('Expo server started successfully:', serverResult.url)
 
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest) {
         ngrokUrl: serverResult.ngrokUrl,
         sandboxId,
         projectId,
+        tunnelMode: currentTunnelMode,
       })
     } catch (error) {
       console.error('Error starting Expo server:', error)

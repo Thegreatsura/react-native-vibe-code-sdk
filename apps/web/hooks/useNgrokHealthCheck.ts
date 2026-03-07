@@ -24,6 +24,7 @@ interface UseNgrokHealthCheckOptions {
   serverReady?: boolean // Only start health checks after initial server setup is complete
   pollingInterval?: number // Default: 60000ms (60 seconds)
   onBackupServerReady?: (newSandboxUrl: string, newNgrokUrl: string) => void // Callback when backup server starts with new URL
+  tunnelMode?: string // 'ngrok-patch' or 'lan'
 }
 
 interface UseNgrokHealthCheckReturn {
@@ -48,6 +49,7 @@ export function useNgrokHealthCheck({
   serverReady = false,
   pollingInterval = DEFAULT_POLLING_INTERVAL,
   onBackupServerReady,
+  tunnelMode = 'ngrok-patch',
 }: UseNgrokHealthCheckOptions): UseNgrokHealthCheckReturn {
   const [healthState, setHealthState] = useState<NgrokHealthState>({
     primaryPort: PRIMARY_PORT,
@@ -96,13 +98,18 @@ export function useNgrokHealthCheck({
     try {
       console.log('[useNgrokHealthCheck] Checking ngrok health...')
 
+      // In LAN mode, always check PRIMARY_PORT since there's no backup Expo server
+      const checkPort = tunnelMode === 'lan'
+        ? PRIMARY_PORT
+        : (healthState.isBackupActive ? BACKUP_PORT : PRIMARY_PORT)
+
       const response = await fetch('/api/check-ngrok-health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ngrokUrl,
           sandboxId,
-          checkPort: healthState.isBackupActive ? BACKUP_PORT : PRIMARY_PORT,
+          checkPort,
         }),
       })
 
@@ -132,7 +139,7 @@ export function useNgrokHealthCheck({
     } finally {
       isCheckingRef.current = false
     }
-  }, [sandboxId, ngrokUrl, healthState.isBackupActive])
+  }, [sandboxId, ngrokUrl, healthState.isBackupActive, tunnelMode])
 
   const triggerBackupServer = useCallback(async () => {
     if (!sandboxId || !projectId || !userId) {
@@ -156,6 +163,7 @@ export function useNgrokHealthCheck({
           projectId,
           userId,
           action,
+          tunnelMode,
         }),
       })
 
@@ -199,7 +207,7 @@ export function useNgrokHealthCheck({
       // Show error to user in production too
       toast.error('Failed to recover ngrok tunnel. Please refresh the page.')
     }
-  }, [sandboxId, projectId, userId, healthState.isBackupActive, showDevToast, onBackupServerReady])
+  }, [sandboxId, projectId, userId, healthState.isBackupActive, showDevToast, onBackupServerReady, tunnelMode])
 
   // Main polling effect - only starts after serverReady is true
   useEffect(() => {
