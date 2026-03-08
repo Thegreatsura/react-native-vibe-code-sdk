@@ -22,17 +22,42 @@ export default function WelcomeEmail({ name }: WelcomeEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Capsule - Vibe code mobile and web apps with AI</Preview>
+      <Preview>Welcome to React Native Vibe Code - Vibe code mobile and web apps with AI</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>Welcome to Capsule!</Heading>
+          <Heading style={h1}>Welcome to React Native Vibe Code!</Heading>
 
           <Text style={text}>Hi {firstName},</Text>
 
           <Text style={text}>
-            You're in! <Link target='_blank' href="https://reactnativevibecode.com" style={link}>Capsule</Link> lets you vibe code ideas into mobile and web apps.
-            Just prompt with text or voice and we'll handle the code for you.
+            You're in! <Link target='_blank' href="https://reactnativevibecode.com" style={link}>React Native Vibe Code</Link> lets you turn text to web and native apps at the same time by just prompting. It is also the first open source React Native IDE so all the code is available for you to run locally if you want, explore or bring up a PR to support the community.
           </Text>
+
+          {/* Pricing */}
+          <Section style={pricingSection}>
+            <Text style={text}>
+              We have great starting plans for the cloud version. We have just
+              halved prices. Entry plan is just $9.99.
+            </Text>
+
+            <Section style={pricingCard}>
+              <Heading as="h2" style={pricingName}>Start</Heading>
+              <Text style={pricingPrice}>
+                $9.99 <span style={pricingPeriod}>/mo</span>
+              </Text>
+              <Text style={pricingOldPrice}>$20/mo</Text>
+              <Text style={pricingFeature}>~ 100 messages monthly</Text>
+              <Text style={pricingFeature}>Private projects</Text>
+              <Text style={pricingFeature}>Code editor</Text>
+              <Text style={pricingFeature}>History restore</Text>
+              <Text style={pricingFeature}>Email support</Text>
+              <Section style={buttonSection}>
+                <Button style={button} href="https://www.reactnativevibecode.com">
+                  Subscribe
+                </Button>
+              </Section>
+            </Section>
+          </Section>
 
           <Section style={featuresSection}>
             <Heading as="h2" style={h2}>
@@ -54,10 +79,10 @@ export default function WelcomeEmail({ name }: WelcomeEmailProps) {
             </Text>
 
             <Text style={featureItem}>
-              <strong>🗄️ Automatic Backend & Database</strong>
+              <strong>☁️ Fullstack Cloud Option</strong>
               <br />
-              Every app comes with backend logic and database built-in. Full-stack
-              apps by default, powered by Convex.
+              Every app can be turned into a fullstack app with backend logic and
+              database built-in. Powered by Convex.
             </Text>
 
             <Text style={featureItem}>
@@ -73,9 +98,10 @@ export default function WelcomeEmail({ name }: WelcomeEmailProps) {
             </Text>
 
             <Text style={featureItem}>
-              <strong>🌐 One-Click Publish</strong>
+              <strong>🌐 Publish to Web & App Store</strong>
               <br />
-              Make your web app go live with a custom domain instantly.
+              Your app can go live as a web app or a fully native app with our
+              publish to web and App Store options.
             </Text>
           </Section>
 
@@ -95,7 +121,7 @@ export default function WelcomeEmail({ name }: WelcomeEmailProps) {
           </Text>
 
           <Text style={footer}>
-          <Link target='_blank' href="https://reactnativevibecode.com" style={link}>Capsule</Link> - Text to mobile & web apps in seconds
+          <Link target='_blank' href="https://reactnativevibecode.com" style={link}>React Native Vibe Code</Link> - Text to mobile & web apps in seconds
           </Text>
         </Container>
       </Body>
@@ -188,4 +214,52 @@ const footer = {
 const link = {
   color: '#556cd6',
   textDecoration: 'underline',
+}
+
+const pricingSection = {
+  margin: '24px 0',
+}
+
+const pricingCard = {
+  backgroundColor: '#f9fafb',
+  borderRadius: '8px',
+  border: '1px solid #e5e7eb',
+  padding: '24px 20px',
+  margin: '16px 0',
+  textAlign: 'center' as const,
+}
+
+const pricingName = {
+  color: '#1a1a1a',
+  fontSize: '20px',
+  fontWeight: '700',
+  margin: '0 0 8px',
+}
+
+const pricingPrice = {
+  color: '#000000',
+  fontSize: '36px',
+  fontWeight: '700',
+  margin: '0',
+  lineHeight: '40px',
+}
+
+const pricingPeriod = {
+  fontSize: '16px',
+  fontWeight: '400',
+  color: '#666',
+}
+
+const pricingOldPrice = {
+  color: '#999',
+  fontSize: '16px',
+  textDecoration: 'line-through',
+  margin: '4px 0 16px',
+}
+
+const pricingFeature = {
+  color: '#555',
+  fontSize: '15px',
+  lineHeight: '14px',
+  margin: '8px 0',
 }
