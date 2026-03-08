@@ -81,6 +81,24 @@ export default function NewsletterEmail({
 
           <Hr style={hr} />
 
+          {/* What's Next */}
+          <Heading as="h2" style={h2}>
+            What's Next
+          </Heading>
+          <Heading as="h3" style={h3}>
+            Introducing Open Code — A New Code Agent
+          </Heading>
+          <Text style={updateText}>
+            OpenCode is one of the most popular code agents available today, and
+            we're bringing it to React Native Vibe Code. Its power comes from
+            supporting many providers and models—Codex, Gemini, Kiwi, and more.
+            This means you'll be able to choose the model that works best for
+            your project, easily double the value of your credits, and get the
+            most out of your subscription. Rolling out soon.
+          </Text>
+
+          <Hr style={hr} />
+
           {/* Closing */}
           <Heading as="h2" style={h2}>
             {closingTitle}
@@ -129,17 +147,12 @@ const defaultUpdates: NewsletterUpdate[] = [
   {
     title: 'Streaming is Fixed',
     description:
-      "We completely rebuilt our streaming pipeline. Code generation now flows smoothly in real-time with no more hanging, stalling, or partial renders. The experience feels instant—you'll see your app come together line by line without interruption.",
+      "We fixed a peristent bug on our streaming pipeline that would not send the last messages of the agent code generation to the chat panel. Code generation now flows smoothly in real-time with no more hanging, stalling, or partial streamings. The experience now feels instant—you'll see your app come together line by line without interruption.",
   },
   {
     title: 'Expo Ngrok Server Stability',
     description:
-      "Live preview is now rock-solid. We overhauled how we handle Expo's tunnel connections so your app preview stays connected and responsive. No more random disconnects or \"tunnel not found\" errors—just a reliable live preview every time you build.",
-  },
-  {
-    title: 'Introducing Open Code — A New Code Agent',
-    description:
-      "We're releasing Open Code, our next-generation code agent. It's faster, smarter, and purpose-built for mobile app development. Open Code understands your project context better, writes cleaner code, and handles complex multi-file changes with ease. Rolling out soon.",
+      "Live preview is now rock-solid. We overhauled how we handle Expo's tunnel connections so your app preview stays connected and responsive. No more random disconnects or \"tunnel not found\" errors—a much more reliable live preview. More work to be done here, but much better overall experience now.",
   },
   {
     title: 'Error Manager Library — Released & Fixed',
@@ -211,6 +224,14 @@ const h2 = {
   fontSize: '18px',
   fontWeight: '600',
   margin: '0 0 8px',
+  padding: '0',
+}
+
+const h3 = {
+  color: '#1a1a1a',
+  fontSize: '16px',
+  fontWeight: '600',
+  margin: '12px 0 8px',
   padding: '0',
 }
 
