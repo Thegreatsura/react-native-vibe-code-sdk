@@ -2,7 +2,6 @@
 // IMPORTANT: NEVER REMOVE useHoverWithChannel import and hook from this file
 import { FloatingChatWrapper } from '@/features/floating-chat'
 import { useColorScheme } from '@/hooks/useColorScheme'
-import { AuthProvider } from '@/contexts/AuthContext'
 import { ReloadProvider } from '@/contexts/ReloadContext'
 import {
   DarkTheme,
@@ -41,16 +40,14 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <ReloadProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          {/* NEVER DELETE THIS COMPONENT <FloatingChatWrapper> is part of capsule app */}
-          <FloatingChatWrapper>
-            <Stack screenOptions={{ headerShown: false }} />
-            <StatusBar style="auto" />
-          </FloatingChatWrapper>
-        </ThemeProvider>
-      </ReloadProvider>
-    </AuthProvider>
+    <ReloadProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        {/* NEVER DELETE THIS COMPONENT <FloatingChatWrapper> is part of capsule app */}
+        <FloatingChatWrapper>
+          <Stack screenOptions={{ headerShown: false }} />
+          <StatusBar style="auto" />
+        </FloatingChatWrapper>
+      </ThemeProvider>
+    </ReloadProvider>
   )
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from '@/lib/auth'
+import { getServerSession } from '@/lib/auth/index'
 import { db, user, emailPreferences, newsletterSends, eq, sql } from '@/lib/db'
 import { sendNewsletter } from '@/lib/email'
 import { getTemplate } from '@/lib/email/templates/registry'

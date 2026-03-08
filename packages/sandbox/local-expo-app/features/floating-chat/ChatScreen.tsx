@@ -10,30 +10,15 @@ import {
   Platform,
   ActivityIndicator,
   InteractionManager,
-  Linking,
 } from 'react-native'
-import { generateAPIUrl, authenticatedFetch, streamingAuthenticatedFetch } from '@/features/floating-chat/lib/api'
+import { generateAPIUrl, projectFetch } from '@/features/floating-chat/lib/api'
 import { ClaudeCodeMessage } from './components/ClaudeCodeMessage'
-import { useAuth } from '@/contexts/AuthContext'
-// useReload not needed - we use deep linking for reload functionality
 import { useChat } from '@ai-sdk/react'
-import { signOut } from './lib/auth/client'
-import { Home, RefreshCw } from 'lucide-react-native'
-
-interface Project {
-  id: string
-  title: string
-  template: string
-  status: string
-  createdAt: string
-  updatedAt: string
-  ngrokUrl?: string
-}
+import { RefreshCw, X } from 'lucide-react-native'
 
 interface ChatScreenProps {
-  onNavigateHome: () => void
+  projectId: string
   onClose: () => void
-  selectedProject: Project | null
 }
 
 // Helper function to check if an error is retryable (network issues)
@@ -50,7 +35,7 @@ function isRetryableError(error: any): boolean {
     'network error',
     'connection refused',
     'socket hang up',
-    'response body is empty', // Backend streaming issue - suppress from UI
+    'response body is empty',
   ]
 
   return retryableErrors.some(msg => errorMessage.includes(msg))
@@ -80,12 +65,10 @@ function splitClaudeCodeContent(content: string): string[] {
     return []
   }
 
-  // Split by common delimiters in Claude Code streaming
   const parts = content
     .split(/(?=📝 Message \d+:)|(?=Streaming:)/)
     .filter((part) => part.trim())
 
-  // If no specific patterns found, split by lines that look like separate messages
   if (parts.length <= 1) {
     const lines = content.split('\n').filter((line) => line.trim())
     const messageParts: string[] = []
@@ -110,16 +93,13 @@ function splitClaudeCodeContent(content: string): string[] {
   return parts
 }
 
-export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScreenProps) {
-  const { user } = useAuth()
+export function ChatScreen({ projectId, onClose }: ChatScreenProps) {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [isStreamActive, setIsStreamActive] = useState(false)
   const [displayError, setDisplayError] = useState<Error | null>(null)
-  const loadedProjectIdRef = useRef<string | null>(null)
-  const streamStartMessageCountRef = useRef<number>(0) // Track message count when streaming starts
+  const hasFetchedForProjectRef = useRef<string | null>(null)
   const flatListRef = useRef<FlatList>(null)
-  const isNearBottomRef = useRef(true) // Track if user is near bottom
-  const shouldAutoScrollRef = useRef(true) // Track if we should auto-scroll
+  const isNearBottomRef = useRef(true)
+  const shouldAutoScrollRef = useRef(true)
   const pendingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -132,9 +112,7 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
 
   const scrollToBottom = useCallback(
     ({ animated = false, delay = 0 }: { animated?: boolean; delay?: number } = {}) => {
-      if (!flatListRef.current) {
-        return
-      }
+      if (!flatListRef.current) return
 
       clearPendingScroll()
 
@@ -153,217 +131,117 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
     [clearPendingScroll],
   )
 
-  // Use the AI SDK's useChat hook for streaming (same as web version)
   const {
     messages,
     error,
+    isLoading,
     input,
     handleInputChange,
     handleSubmit,
     setMessages,
   } = useChat({
+    id: projectId,
     experimental_throttle: 10,
     api: generateAPIUrl('/api/chat'),
     body: {
-      projectId: selectedProject?.id,
-      userId: user?.id,
+      projectId,
     },
-    // Remove id to prevent automatic persistence/caching of all messages
-    // We manually load only the last 30 messages via setMessages
-    // id: selectedProject?.id ? `chat-${selectedProject.id}` : undefined,
-    fetch: streamingAuthenticatedFetch, // Use streaming-optimized fetch without retry
+    fetch: (input, init) => projectFetch(input, projectId, init),
     sendExtraMessageFields: true,
     keepLastMessageOnError: true,
     experimental_prepareRequestBody: ({ messages, requestData, requestBody }: any) => {
-      // Only send the last user message to avoid payload too large errors
-      // The backend extracts lastUserMessage = messages.filter(m => m.role === 'user').pop()
       const lastUserMessage = messages.filter((m: any) => m.role === 'user').pop()
 
-      console.log('[ChatScreen] experimental_prepareRequestBody called:', {
-        totalMessages: messages.length,
-        hasLastUserMessage: !!lastUserMessage,
-        requestBodyKeys: Object.keys(requestBody || {}),
-        requestDataKeys: Object.keys(requestData || {}),
-      })
-
-      // Explicitly build the body with all required fields
-      const newBody = {
-        projectId: requestData?.body?.projectId || selectedProject?.id,
-        userId: requestData?.body?.userId || user?.id,
+      return {
+        projectId: requestData?.body?.projectId || projectId,
         messages: lastUserMessage ? [lastUserMessage] : [],
       }
-
-      console.log('[ChatScreen] Final request body:', newBody)
-
-      return newBody
     },
     onError: error => {
-      // Clear send timeout
       if (sendTimeoutRef.current) {
         clearTimeout(sendTimeoutRef.current)
         sendTimeoutRef.current = null
       }
 
-      // Only show and log non-retryable errors to users
-      // Retryable network errors are handled silently
       if (!isRetryableError(error)) {
         console.error('[ChatScreen] Non-retryable error:', error?.message)
         setDisplayError(error)
       } else {
-        // Silently suppress retryable errors (use console.log, not console.error)
         console.log('[ChatScreen] Retryable error suppressed:', error?.message)
         setDisplayError(null)
       }
-
-      // Reset stream state on error
-      setIsStreamActive(false)
     },
-    onResponse: (response: Response) => {
-      console.log('[ChatScreen] Response received:', {
-        status: response.status,
-        contentType: response.headers.get('content-type'),
-      })
-      // Clear send timeout since we got a response
+    onResponse: () => {
       if (sendTimeoutRef.current) {
         clearTimeout(sendTimeoutRef.current)
         sendTimeoutRef.current = null
       }
-      // Clear any previous errors when receiving successful response
       setDisplayError(null)
-      // Mark stream as active when response starts
-      setIsStreamActive(true)
     },
-    onFinish: (message: any) => {
-      console.log('[ChatScreen] Stream finished, message:', {
-        id: message.id,
-        role: message.role,
-        contentLength: message.content?.length || 0,
-      })
-      // Clear send timeout
+    onFinish: () => {
       if (sendTimeoutRef.current) {
         clearTimeout(sendTimeoutRef.current)
         sendTimeoutRef.current = null
       }
-      // Immediately reset stream state when stream finishes
-      setIsStreamActive(false)
     },
   })
 
-  // Load chat history when project changes
+  // Load chat history once per project ID
   useEffect(() => {
+    if (hasFetchedForProjectRef.current === projectId) return
+
     const loadChatHistory = async () => {
-      if (!selectedProject || !user) {
-        return
-      }
-
-      // Only load if we haven't loaded this project yet
-      if (loadedProjectIdRef.current === selectedProject.id) {
-        return
-      }
-
-      console.log('[ChatScreen] Loading chat history for project:', selectedProject.id)
+      // Mark as fetched immediately to prevent duplicate fetches
+      hasFetchedForProjectRef.current = projectId
       setIsLoadingHistory(true)
 
       try {
         const url = generateAPIUrl('/api/chat/history')
-        console.log('[ChatScreen] Fetching from URL:', url)
-        console.log('[ChatScreen] Request body:', {
-          projectId: selectedProject.id,
-          userId: user.id,
-          limit: 30,
-        })
-
-        // Create abort controller for timeout
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => {
-          console.log('[ChatScreen] Request timeout after 15 seconds')
-          controller.abort()
-        }, 15000) // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-        const response = await authenticatedFetch(url, {
+        const response = await projectFetch(url, projectId, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            projectId: selectedProject.id,
-            userId: user.id,
-            limit: 30, // Load only last 30 messages
+            projectId,
+            limit: 30,
           }),
           signal: controller.signal,
         })
 
         clearTimeout(timeoutId)
 
-        console.log('[ChatScreen] Response status:', response.status)
-        console.log('[ChatScreen] Response headers:', Object.fromEntries(response.headers.entries()))
-
         if (!response.ok) {
-          const errorText = await response.text()
-          console.log('[ChatScreen] History fetch failed:', response.status, errorText)
           throw new Error(`Failed to load history: ${response.status}`)
         }
 
         const data = await response.json()
-        console.log('[ChatScreen] Response data:', data)
 
         if (data.messages && data.messages.length > 0) {
           console.log('[ChatScreen] Loaded', data.messages.length, 'messages')
-
-          // Use the same format as web version - no conversion needed
-          // The web version stores and loads messages with content string
-          console.log('[ChatScreen] Setting messages from history')
           setMessages(data.messages)
-
-          loadedProjectIdRef.current = selectedProject.id
-        } else {
-          console.log('[ChatScreen] No history found')
-          loadedProjectIdRef.current = selectedProject.id
         }
       } catch (error) {
-        // Use console.log to avoid triggering RN error overlay
         console.log('[ChatScreen] Error loading chat history:', error instanceof Error ? error.message : String(error))
-        // Still mark project as loaded so we can use the chat
-        loadedProjectIdRef.current = selectedProject.id
       } finally {
         setIsLoadingHistory(false)
       }
     }
 
     loadChatHistory()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject?.id, user?.id])
+  }, [projectId, setMessages])
 
-  // Scroll to bottom when messages update - during streaming or if user is near bottom
+  // Scroll to bottom when messages update during streaming or if near bottom
   useEffect(() => {
-    console.log('[ChatScreen] Messages updated:', messages.length, 'messages')
-    if (messages.length > 0 && (isStreamActive || shouldAutoScrollRef.current)) {
-      // Use a slight delay to give FlatList time to finish rendering
+    if (messages.length > 0 && (isLoading || shouldAutoScrollRef.current)) {
       scrollToBottom({ animated: false, delay: 100 })
     }
-  }, [messages, isStreamActive, scrollToBottom])
+  }, [messages, isLoading, scrollToBottom])
 
-  // Backup: detect stream completion from message content when onFinish doesn't fire
-  useEffect(() => {
-    if (!isStreamActive) return
-    // Only check messages added AFTER streaming started (avoid detecting historical completions)
-    if (messages.length <= streamStartMessageCountRef.current) return
-
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage?.role === 'assistant' && lastMessage?.content) {
-      // Check for completion indicators in the content
-      const content = lastMessage.content
-      if (content.includes('✅') || content.includes('Query completed successfully')) {
-        console.log('[ChatScreen] Detected completion in message content, resetting stream state')
-        setIsStreamActive(false)
-      }
-    }
-  }, [messages, isStreamActive])
-
-  // Scroll to bottom after chat history loads (always)
+  // Scroll to bottom after chat history loads
   useEffect(() => {
     if (!isLoadingHistory && messages.length > 0) {
-      // Ensure initial history load snaps to bottom once everything is rendered
       shouldAutoScrollRef.current = true
       isNearBottomRef.current = true
       scrollToBottom({ animated: false, delay: 400 })
@@ -373,92 +251,43 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
   useEffect(() => {
     return () => {
       clearPendingScroll()
-      // Clear send timeout on unmount
       if (sendTimeoutRef.current) {
         clearTimeout(sendTimeoutRef.current)
       }
     }
   }, [clearPendingScroll])
 
-  // Handle scroll events to detect if user scrolled up
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent
-
-    // Calculate if user is near bottom (within 100 pixels)
     const paddingToBottom = 100
     const isNearBottom = layoutMeasurement.height + contentOffset.y >=
       contentSize.height - paddingToBottom
 
     isNearBottomRef.current = isNearBottom
     shouldAutoScrollRef.current = isNearBottom
-
-    // Log for debugging
-    if (!isNearBottom) {
-      console.log('[ChatScreen] User scrolled up, disabling auto-scroll')
-    }
   }
 
   const handleSend = () => {
-    // Use isStreamActive (local state) for loading control
-    if (!input.trim() || !selectedProject || !user || isStreamActive) {
-      return
-    }
+    if (!input.trim() || isLoading) return
 
-    console.log('[ChatScreen] Sending message:', {
-      text: input.trim(),
-      projectId: selectedProject.id,
-      userId: user.id,
-    })
-
-    // Re-enable auto-scroll when user sends a message
     shouldAutoScrollRef.current = true
     isNearBottomRef.current = true
 
-    // Clear any existing send timeout
     if (sendTimeoutRef.current) {
       clearTimeout(sendTimeoutRef.current)
     }
 
-    // Track current message count to detect new messages during streaming
-    streamStartMessageCountRef.current = messages.length
-
-    // Set stream as active immediately to prevent double-sends
-    setIsStreamActive(true)
-
-    // Create a synthetic event for handleSubmit
     const syntheticEvent = {
       preventDefault: () => {},
     } as React.FormEvent
 
-    // Submit the form - useChat will handle adding the message immediately
     handleSubmit(syntheticEvent)
 
-    // Safeguard: if stream doesn't complete within 60 seconds, reset the state
-    // This prevents stuck loading states if the request fails silently
+    // Safeguard: reset if stream doesn't complete within 60 seconds
     sendTimeoutRef.current = setTimeout(() => {
-      console.log('[ChatScreen] Send timeout reached, resetting stream state')
-      setIsStreamActive(false)
+      console.log('[ChatScreen] Send timeout reached')
     }, 60000)
   }
-
-  const handleReload = useCallback(async () => {
-    console.log('[ChatScreen] ========== RELOAD BUTTON PRESSED ==========')
-
-    if (!selectedProject?.ngrokUrl) {
-      console.log('[ChatScreen] No ngrok URL available, cannot reload via deep link')
-      return
-    }
-
-    // Construct deep link like HomeScreen does when selecting a project
-    const baseDeeplinkUrl = selectedProject.ngrokUrl.replace('https://', 'exp://')
-    const deeplinkUrl = `${baseDeeplinkUrl}?projectId=${encodeURIComponent(selectedProject.id)}`
-
-    console.log('[ChatScreen] Opening deeplink for reload:', deeplinkUrl)
-
-    // Close the modal first, then open the deep link to reload
-    onClose()
-    await Linking.openURL(deeplinkUrl)
-  }, [selectedProject, onClose])
 
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isUser = item.role === 'user'
@@ -466,16 +295,12 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
     const isClaudeCode = isClaudeCodeMessage(content)
 
     if (isClaudeCode && !isUser) {
-      // Split content into parts for individual card rendering
       const messageParts = splitClaudeCodeContent(content)
-
-      // Check if this is the last message
       const isLastMessage = index === messages.length - 1
 
       return (
         <View style={styles.messageContainer}>
           {messageParts.map((part, partIndex) => {
-            // Check if this is the last part of the last message
             const isLastPart = partIndex === messageParts.length - 1
             const isLastCard = isLastMessage && isLastPart
 
@@ -483,7 +308,7 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
               <ClaudeCodeMessage
                 key={`${item.id}-part-${partIndex}`}
                 content={part}
-                isStreaming={isStreamActive}
+                isStreaming={isLoading}
                 isLastCard={isLastCard}
               />
             )
@@ -513,35 +338,23 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
 
   return (
     <View style={styles.container}>
-      {/* Header with home button, project title, and close button */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={onNavigateHome}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <Home size={22} color="black" />
-        </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {selectedProject?.title || 'Chat'}
+            Chat
           </Text>
-          {selectedProject && (
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {selectedProject.template}
-            </Text>
-          )}
         </View>
         <TouchableOpacity
-          onPress={handleReload}
+          onPress={onClose}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
-          <RefreshCw size={22} color="black" />
+          <X size={22} color="black" />
         </TouchableOpacity>
       </View>
 
-      {/* Error display - only shows non-retryable errors */}
+      {/* Error display */}
       {displayError && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{displayError.message}</Text>
@@ -556,7 +369,6 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
         </View>
       ) : (
         <>
-          {/* Chat messages */}
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -567,7 +379,7 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
             onScroll={handleScroll}
             scrollEventThrottle={400}
             onContentSizeChange={() => {
-              if (isStreamActive || shouldAutoScrollRef.current) {
+              if (isLoading || shouldAutoScrollRef.current) {
                 scrollToBottom({ animated: false })
               }
             }}
@@ -583,7 +395,6 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
             }
           />
 
-          {/* Input area */}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
@@ -602,18 +413,18 @@ export function ChatScreen({ onNavigateHome, onClose, selectedProject }: ChatScr
                 placeholderTextColor="#999"
                 multiline
                 maxLength={2000}
-                editable={!isStreamActive}
+                editable={!isLoading}
               />
               <TouchableOpacity
                 onPress={handleSend}
                 style={[
                   styles.sendButton,
-                  (!input.trim() || isStreamActive) && styles.sendButtonDisabled,
+                  (!input.trim() || isLoading) && styles.sendButtonDisabled,
                 ]}
-                disabled={!input.trim() || isStreamActive}
+                disabled={!input.trim() || isLoading}
                 activeOpacity={0.7}
               >
-                {isStreamActive ? (
+                {isLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={styles.sendButtonText}>Send</Text>
@@ -658,12 +469,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
     textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 2,
   },
   loadingContainer: {
     flex: 1,

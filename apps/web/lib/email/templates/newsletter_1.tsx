@@ -64,6 +64,15 @@ export default function NewsletterEmail({
 
           <Text style={text}>{intro}</Text>
 
+          <Section style={quickLinksSection}>
+            <Button style={quickLinkButton} href="https://www.reactnativevibecode.com">
+              Launch React Native Vibe Code
+            </Button>
+            <Button style={quickLinkButtonOutline} href="https://github.com/react-native-vibe-code/react-native-vibe-code-sdk">
+              Star the GitHub Repo
+            </Button>
+          </Section>
+
           <Hr style={hr} />
 
           {/* Updates */}
@@ -182,6 +191,8 @@ const defaultUpdates: NewsletterUpdate[] = [
     title: 'Prices Cut in Half',
     description:
       "We dropped our prices across the board. The Start plan now begins at just $9.99/month—half of what it was. We believe everyone should be able to vibe code their ideas into real apps without breaking the bank. Same powerful AI, way more accessible.",
+    linkUrl: 'https://reactnativevibecode.com/subscribe',
+    linkText: 'Check subscription plans',
   },
 ]
 
@@ -250,6 +261,38 @@ const text = {
   fontSize: '16px',
   lineHeight: '26px',
   margin: '16px 0',
+}
+
+const quickLinksSection = {
+  textAlign: 'center' as const,
+  margin: '24px 0',
+}
+
+const quickLinkButton = {
+  backgroundColor: '#000000',
+  borderRadius: '6px',
+  color: '#fff',
+  fontSize: '14px',
+  fontWeight: '600',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '10px 20px',
+  margin: '0 6px 8px',
+}
+
+const quickLinkButtonOutline = {
+  backgroundColor: '#ffffff',
+  borderRadius: '6px',
+  color: '#000000',
+  fontSize: '14px',
+  fontWeight: '600',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '9px 19px',
+  margin: '0 6px 8px',
+  border: '1px solid #e5e7eb',
 }
 
 const updateSection = {

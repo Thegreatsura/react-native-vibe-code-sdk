@@ -27,6 +27,8 @@ export function EmailAdminPanel() {
   const [uploading, setUploading] = useState(false)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const [testEmail, setTestEmail] = useState('rodrigofigueroa.name@gmail.com')
+  const [sendingTest, setSendingTest] = useState(false)
 
   useEffect(() => {
     fetchHistory()
@@ -66,6 +68,32 @@ export function EmailAdminPanel() {
       setMessage({ type: 'error', text: 'Network error' })
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleSendTest() {
+    if (!selectedTemplate || !testEmail) return
+
+    setSendingTest(true)
+    setMessage(null)
+
+    try {
+      const res = await fetch('/api/email-admin/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateName: selectedTemplate, testEmail }),
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: `Test email sent to ${testEmail}` })
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to send test' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Network error' })
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -172,6 +200,28 @@ export function EmailAdminPanel() {
               className="w-full h-[600px] border rounded-lg"
               title="Email Preview"
             />
+          </div>
+        )}
+
+        {selectedTemplate && (
+          <div className="flex items-end gap-3 p-4 bg-muted/50 rounded-lg">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-sm font-medium">Send Test Email</label>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="test@example.com"
+                className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            <button
+              onClick={handleSendTest}
+              disabled={!testEmail || sendingTest}
+              className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary/80 transition-colors shrink-0"
+            >
+              {sendingTest ? 'Sending...' : 'Send Test'}
+            </button>
           </div>
         )}
 

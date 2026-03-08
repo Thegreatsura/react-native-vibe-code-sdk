@@ -87,4 +87,5 @@ export async function sendNewsletter(
   return results
 }
 
+export { getResend, NEWSLETTER_FROM }
 export { WelcomeEmail, NewsletterEmail }
