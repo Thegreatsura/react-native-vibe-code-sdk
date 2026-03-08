@@ -37,7 +37,7 @@ export default function NewsletterEmail({
   issueNumber = 1,
   issueDate = 'March 2026',
   heading = "What's New at React Native Vibe Code",
-  intro = "Here's what we've been working on to make your vibe coding experience even better.",
+  intro = "Hey everyone 👋. It's been 3 weeks since the release of React Native Vibe Code. The feedback has been very positive and overwelming. More that 500 users and thousands of apps created already. That is great but we got a lot of feedback on bugs, and half baked features. It happens, we just released but fixes are already live. Here's what we've been working on to make your vibe coding experience even better.",
   updates = defaultUpdates,
   closingTitle = 'Try It Out',
   closingText = 'All of these improvements are live right now. Jump in and start building.',
