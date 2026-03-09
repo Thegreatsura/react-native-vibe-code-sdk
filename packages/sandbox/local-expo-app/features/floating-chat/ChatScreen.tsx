@@ -42,6 +42,7 @@ function isRetryableError(error: any): boolean {
 }
 
 // Helper function to detect if message content is from Claude Code
+// Keep in sync with apps/web/components/chat/message.tsx
 function isClaudeCodeMessage(content: string): boolean {
   if (!content || typeof content !== 'string') {
     return false
@@ -55,7 +56,31 @@ function isClaudeCodeMessage(content: string): boolean {
     content.includes('Claude Code query') ||
     content.includes('session_id') ||
     (content.includes('{') && content.includes('"type"')) ||
-    content.includes('Query completed successfully')
+    content.includes('Query completed successfully') ||
+    content.includes('$ tsx test.ts') ||
+    content.includes('--system-prompt=') ||
+    content.includes('stderr chunk') ||
+    content.includes('🚀 CLAUDE EXECUTOR STARTING') ||
+    content.includes('Version:') ||
+    content.includes('Raw process.argv:') ||
+    content.includes('Parsed args:') ||
+    content.includes('Found arguments:') ||
+    content.includes('promptArg:') ||
+    content.includes('systemPromptArg:') ||
+    content.includes('cwdArg:') ||
+    content.includes('modelArg:') ||
+    content.includes('imageUrlsArg:') ||
+    content.includes('Extracted values:') ||
+    content.includes('No image URLs provided') ||
+    content.includes('ANTHROPIC_API_KEY length:') ||
+    content.includes('Initializing AI Code Agent') ||
+    content.includes('Using text-only prompt') ||
+    content.includes("'/usr/local/bin/node'") ||
+    content.includes('/claude-sdk/index.ts') ||
+    content.includes('/claude-sdk/executor.mjs') ||
+    content.includes('--prompt=') ||
+    content.includes('--model=') ||
+    content.includes('Current working directory: /home/user')
   )
 }
 

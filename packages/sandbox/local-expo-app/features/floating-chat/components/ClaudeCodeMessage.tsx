@@ -17,6 +17,29 @@ function tryParseJSON(content: string) {
   }
 }
 
+// Helper function to split concatenated JSON objects (e.g. {...}{...})
+function splitJSONObjects(text: string): any[] {
+  const objects: any[] = []
+  let depth = 0
+  let start = 0
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (depth === 0) start = i
+      depth++
+    } else if (text[i] === '}') {
+      depth--
+      if (depth === 0) {
+        const jsonStr = text.slice(start, i + 1)
+        const parsed = tryParseJSON(jsonStr)
+        if (parsed) objects.push(parsed)
+      }
+    }
+  }
+
+  return objects
+}
+
 // Helper function to extract Claude messages from formatted content
 function extractClaudeMessages(content: string) {
   // Remove the "📝 Message X:" prefix
@@ -56,6 +79,11 @@ function extractClaudeMessages(content: string) {
     if (parsed) {
       return [parsed]
     }
+    // Try to extract multiple concatenated JSON objects
+    const splitObjects = splitJSONObjects(cleanContent)
+    if (splitObjects.length > 0) {
+      return splitObjects
+    }
   }
 
   // Look for "Streaming: {content}" format
@@ -69,6 +97,11 @@ function extractClaudeMessages(content: string) {
       const parsed = tryParseJSON(cleanedForParsing)
       if (parsed) {
         return [parsed]
+      }
+      // Try splitting multiple JSON objects
+      const splitObjects = splitJSONObjects(streamContent)
+      if (splitObjects.length > 0) {
+        return splitObjects
       }
     }
 
