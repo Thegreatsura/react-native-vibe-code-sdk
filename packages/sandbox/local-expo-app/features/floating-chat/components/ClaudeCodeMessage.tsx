@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet, Platform, Animated } from 'react-native'
-import { Settings, FileText, Edit3, Zap, Bot, CheckCircle, AlertCircle, Clock, Cog, Play } from 'lucide-react-native'
+import { Settings, FileText, Edit3, Zap, Bot, CheckCircle, AlertCircle, Clock, Cog, Play, Eye, Search, Terminal, AlertTriangle } from 'lucide-react-native'
 
 interface ClaudeCodeMessageProps {
   content: string
@@ -256,6 +256,110 @@ const TodoListCard = ({ data, isStreaming }: { data: any; isStreaming?: boolean 
 }
 
 const AssistantMessageCard = ({ data, isStreaming }: { data: any; isStreaming?: boolean }) => {
+  // --- Slim format: subtype === 'text' ---
+  if (data.subtype === 'text' && data.text) {
+    return (
+      <Card style={styles.assistantCard}>
+        {isStreaming && (
+          <View style={styles.cogContainer}>
+            <SpinningCog size={24} color="#10B981" />
+          </View>
+        )}
+        <CardHeader>
+          <CardTitle Icon={Bot}>Code Agent</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Text style={styles.messageText}>{data.text}</Text>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // --- Slim format: subtype === 'tool_use' ---
+  if (data.subtype === 'tool_use' && data.tool_name) {
+    const toolName = data.tool_name
+
+    if (toolName === 'TodoWrite' && data.input) {
+      return <TodoListCard data={data} isStreaming={isStreaming} />
+    }
+
+    if (toolName === 'Write' || toolName === 'Edit') {
+      return (
+        <Card style={styles.editCard}>
+          {isStreaming && (
+            <View style={styles.cogContainer}>
+              <SpinningCog size={24} color="#D97706" />
+            </View>
+          )}
+          <CardHeader>
+            <CardTitle Icon={toolName === 'Write' ? FileText : Edit3}>
+              {toolName === 'Write' ? 'Writing' : 'Editing'}: {data.file_path || 'unknown file'}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      )
+    }
+
+    if (toolName === 'Read') {
+      return (
+        <Card style={styles.readCard}>
+          {isStreaming && (
+            <View style={styles.cogContainer}>
+              <SpinningCog size={24} color="#6B7280" />
+            </View>
+          )}
+          <CardHeader>
+            <CardTitle Icon={Eye}>Reading: {data.file_path || 'unknown file'}</CardTitle>
+          </CardHeader>
+        </Card>
+      )
+    }
+
+    if (toolName === 'Glob' || toolName === 'Grep') {
+      return (
+        <Card style={styles.toolCard}>
+          {isStreaming && (
+            <View style={styles.cogContainer}>
+              <SpinningCog size={24} color="#A855F7" />
+            </View>
+          )}
+          <CardHeader>
+            <CardTitle Icon={Search}>{toolName}: {data.pattern || '...'}</CardTitle>
+          </CardHeader>
+        </Card>
+      )
+    }
+
+    if (toolName === 'Bash') {
+      return (
+        <Card style={styles.bashCard}>
+          {isStreaming && (
+            <View style={styles.cogContainer}>
+              <SpinningCog size={24} color="#EA580C" />
+            </View>
+          )}
+          <CardHeader>
+            <CardTitle Icon={Terminal}>Running: {data.command_preview || '...'}</CardTitle>
+          </CardHeader>
+        </Card>
+      )
+    }
+
+    return (
+      <Card style={styles.toolCard}>
+        {isStreaming && (
+          <View style={styles.cogContainer}>
+            <SpinningCog size={24} color="#A855F7" />
+          </View>
+        )}
+        <CardHeader>
+          <CardTitle Icon={Zap}>Using Tool: {toolName}</CardTitle>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  // --- Legacy format: message.content array ---
   const message = data.message || data
   const textContent = message.content?.find((c: any) => c.type === 'text')?.text || ''
   const toolUse = message.content?.find((c: any) => c.type === 'tool_use')
@@ -268,7 +372,6 @@ const AssistantMessageCard = ({ data, isStreaming }: { data: any; isStreaming?: 
 
     // Special handling for Write/Edit tools
     if (toolUse.name === 'Write' || toolUse.name === 'Edit') {
-      const filePath = toolUse.input?.file_path || 'unknown file'
       return (
         <Card style={styles.editCard}>
           {isStreaming && (
@@ -281,11 +384,6 @@ const AssistantMessageCard = ({ data, isStreaming }: { data: any; isStreaming?: 
               {toolUse.name === 'Write' ? 'Writing to file' : 'Editing file'}
             </CardTitle>
           </CardHeader>
-          {/* <CardContent>
-            <View style={styles.codeBlock}>
-              <Text style={styles.codeText}>{filePath}</Text>
-            </View>
-          </CardContent> */}
         </Card>
       )
     }
@@ -301,15 +399,6 @@ const AssistantMessageCard = ({ data, isStreaming }: { data: any; isStreaming?: 
         <CardHeader>
           <CardTitle Icon={Zap}>Using Tool: {toolUse.name}</CardTitle>
         </CardHeader>
-        {/* <CardContent>
-          <View style={styles.codeBlock}>
-            <Text style={styles.codeText}>
-              {typeof toolUse.input === 'string'
-                ? toolUse.input
-                : JSON.stringify(toolUse.input, null, 2)}
-            </Text>
-          </View>
-        </CardContent> */}
       </Card>
     )
   }
@@ -333,6 +422,75 @@ const AssistantMessageCard = ({ data, isStreaming }: { data: any; isStreaming?: 
   }
 
   return null
+}
+
+const ToolResultCard = ({ data, isStreaming }: { data: any; isStreaming?: boolean }) => {
+  // Slim format: subtype === 'tool_result'
+  if (data.subtype === 'tool_result') {
+    const isError = !data.success
+    return (
+      <Card style={isError ? styles.warningCard : styles.grayCard}>
+        {isStreaming && (
+          <View style={styles.cogContainer}>
+            <SpinningCog size={24} color={isError ? '#D97706' : '#6B7280'} />
+          </View>
+        )}
+        <CardHeader>
+          <CardTitle Icon={isError ? AlertTriangle : CheckCircle}>
+            {isError ? 'Tool Error' : 'Tool Result'}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  // Legacy format
+  const message = data.message || data
+  const content = message.content?.[0]?.content || message.content || ''
+  const isError =
+    (typeof content === 'string' && (content.includes('Error') || content.includes('error'))) ||
+    data.is_error
+
+  return (
+    <Card style={isError ? styles.warningCard : styles.grayCard}>
+      {isStreaming && (
+        <View style={styles.cogContainer}>
+          <SpinningCog size={24} color={isError ? '#D97706' : '#6B7280'} />
+        </View>
+      )}
+      <CardHeader>
+        <CardTitle Icon={isError ? AlertTriangle : FileText}>
+          {isError ? 'Not Found' : 'File Content'}
+        </CardTitle>
+      </CardHeader>
+    </Card>
+  )
+}
+
+const ResultCard = ({ data, isStreaming }: { data: any; isStreaming?: boolean }) => {
+  const isSuccess = data.subtype === 'success' || !data.is_error
+  const result = data.result || data.message || ''
+
+  // Success result is same as last assistant message, so skip it
+  if (isSuccess) return null
+
+  return (
+    <Card style={styles.errorCard}>
+      {isStreaming && (
+        <View style={styles.cogContainer}>
+          <SpinningCog size={24} color="#991B1B" />
+        </View>
+      )}
+      <CardHeader>
+        <CardTitle Icon={AlertTriangle}>Task Failed</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Text style={styles.errorText}>
+          {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+        </Text>
+      </CardContent>
+    </Card>
+  )
 }
 
 const RawContentCard = ({ content, isStreaming }: { content: string; isStreaming?: boolean }) => {
@@ -477,7 +635,7 @@ export function ClaudeCodeMessage({ content, isStreaming, isLastCard }: ClaudeCo
     <View style={styles.container}>
       {claudeMessages.map((claudeMessage, index) => {
         // Only show cog on the last card when streaming
-        const showCog = isStreaming && isLastCard
+        const showCog = isStreaming && isLastCard && index === claudeMessages.length - 1
 
         // Handle JSON parsed messages
         if (claudeMessage.type === 'system' && claudeMessage.subtype === 'init') {
@@ -488,14 +646,12 @@ export function ClaudeCodeMessage({ content, isStreaming, isLastCard }: ClaudeCo
           return <AssistantMessageCard key={index} data={claudeMessage} isStreaming={showCog} />
         }
 
-        // Handle 'user' type (tool results) - return null, don't show these cards
         if (claudeMessage.type === 'user') {
-          return null
+          return <ToolResultCard key={index} data={claudeMessage} isStreaming={showCog} />
         }
 
-        // Handle 'result' type - return null, same as web version for success
         if (claudeMessage.type === 'result') {
-          return null
+          return <ResultCard key={index} data={claudeMessage} isStreaming={showCog} />
         }
 
         // Handle raw content from streaming
@@ -570,6 +726,22 @@ const styles = StyleSheet.create({
   toolCard: {
     backgroundColor: '#F3E8FF',
     borderColor: '#E9D5FF',
+  },
+  readCard: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
+  },
+  bashCard: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+  },
+  warningCard: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  grayCard: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
   },
   assistantCard: {
     backgroundColor: '#DCFCE7',
