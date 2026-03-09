@@ -6,6 +6,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -15,6 +16,7 @@ import {
 interface NewsletterUpdate {
   title: string
   description: string
+  imageUrl?: string
   linkUrl?: string
   linkText?: string
 }
@@ -38,7 +40,7 @@ export default function NewsletterEmail({
   issueNumber = 1,
   issueDate = 'March 2026',
   heading = "What's New at React Native Vibe Code",
-  intro = "Hey everyone 👋. It's been 3 weeks since the release of React Native Vibe Code. The feedback has been very positive and overwelming. More that 500 users and thousands of apps created already. That is great but we got a lot of feedback on bugs, and half baked features. It happens, we just released but fixes are already live. Here's what we've been working on to make your vibe coding experience even better.",
+  intro = "Hey everyone 👋. It's been 3 weeks since the release of React Native Vibe Code. The feedback has been very positive and overwelming. More that 500 users and thousands of apps created already. That is great but we got a lot of feedback on bugs. So we got to work on them and we just released a bunch of fixes. Here's what we've been working on to make your vibe coding experience even better.",
   updates = defaultUpdates,
   closingTitle = 'Try It Out',
   closingText = 'All of these improvements are live right now. Jump in and start building.',
@@ -81,6 +83,14 @@ export default function NewsletterEmail({
               <Heading as="h2" style={h2}>
                 {update.title}
               </Heading>
+              {update.imageUrl && (
+                <Img
+                  src={update.imageUrl}
+                  alt={update.title}
+                  width="100%"
+                  style={updateImage}
+                />
+              )}
               <Text style={updateText}>{update.description}</Text>
               {update.linkUrl && (
                 <Link href={update.linkUrl} style={updateLink}>
@@ -97,7 +107,7 @@ export default function NewsletterEmail({
             What's Next
           </Heading>
           <Heading as="h3" style={h3}>
-            Introducing Open Code — A New Code Agent
+            First closed alpha of Open Code — A New Code Agent option to choose
           </Heading>
           <Text style={updateText}>
             OpenCode is one of the most popular code agents available today, and
@@ -164,9 +174,16 @@ export default function NewsletterEmail({
 
 const defaultUpdates: NewsletterUpdate[] = [
   {
+    title: 'Prices Cut in Half',
+    description:
+      "We dropped our prices across the board. The Start plan now begins at just $9.99/month—half of what it was. We believe everyone should be able to vibe code their ideas into real apps without breaking the bank. Same powerful AI, way more accessible.",
+    linkUrl: 'https://reactnativevibecode.com/subscription',
+    linkText: 'Check subscription plans',
+  },
+  {
     title: 'Streaming is Fixed',
     description:
-      "We fixed a peristent bug on our streaming pipeline that would not send the last messages of the agent code generation to the chat panel. Code generation now flows smoothly in real-time with no more hanging, stalling, or partial streamings. The experience now feels instant—you'll see your app come together line by line without interruption.",
+      "We fixed a peristent bug on our streaming pipeline that would not send most of the times the last messages of the agent code generation to the chat panel. Code generation now flows smoothly in real-time with no more hanging, stalling, or partial streamings. The experience now feels instant—you'll see your app come together line by line without interruption.",
   },
   {
     title: 'Expo Ngrok Server Stability',
@@ -179,20 +196,16 @@ const defaultUpdates: NewsletterUpdate[] = [
       "We built and released the error-manager package. It automatically detects Expo errors, extracts full error context with source and stack traces, and surfaces them as clean notification cards right above your chat input. No more digging through logs—errors are caught and shown to you instantly so the AI can fix them.",
     linkUrl: 'https://www.youtube.com/watch?v=6GQOgzDrqHA',
     linkText: 'Watch the release video',
+    imageUrl: "https://fy5agx7munyc3bi3.public.blob.vercel-storage.com/newsletter/1773063258972-error%20msg%20-%20mailing-x1mClCxZfCpPte4Ib9JV4mj8H6ZegB.png"
   },
   {
     title: 'Visual Edits — Point, Prompt, Done',
     description:
       "We fixed and improved visual edits. Now you can select any visual element directly from your app preview and prompt for changes to it. No more writing long prompts describing where you want the change—just tap the element, say what to change, and it's done. Faster iteration, less guesswork.",
+    imageUrl:
+      'https://fy5agx7munyc3bi3.public.blob.vercel-storage.com/newsletter/1773062862815-CleanShot%202026-03-09%20at%2010.26.17%402x-P1zp29BNPBHRKOPeHh8WRy6GLvnSJn.png',
     linkUrl: 'https://www.youtube.com/watch?v=7xwdsotl2uo',
     linkText: 'Watch the release video',
-  },
-  {
-    title: 'Prices Cut in Half',
-    description:
-      "We dropped our prices across the board. The Start plan now begins at just $9.99/month—half of what it was. We believe everyone should be able to vibe code their ideas into real apps without breaking the bank. Same powerful AI, way more accessible.",
-    linkUrl: 'https://reactnativevibecode.com/subscribe',
-    linkText: 'Check subscription plans',
   },
 ]
 
@@ -339,6 +352,12 @@ const footer = {
 const link = {
   color: '#556cd6',
   textDecoration: 'underline',
+}
+
+const updateImage = {
+  borderRadius: '8px',
+  marginTop: '12px',
+  marginBottom: '8px',
 }
 
 const updateLink = {
