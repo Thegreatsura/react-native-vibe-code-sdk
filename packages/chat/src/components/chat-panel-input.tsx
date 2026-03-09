@@ -433,7 +433,7 @@ export const ChatPanelInput = memo(function ChatPanelInput({
         {/* Textarea wrapper */}
         <div className="relative">
           <div
-            className="w-full min-h-[4.5rem] border border-input bg-background rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ring-offset-background"
+            className="w-full min-h-[4.5rem] max-h-[80px] overflow-y-auto border border-input bg-background rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ring-offset-background"
             onClick={() => editorRef.current?.focus?.()}
           >
             <div className="flex flex-wrap items-start gap-1.5 p-3">
