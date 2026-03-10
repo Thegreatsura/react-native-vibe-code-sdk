@@ -779,7 +779,7 @@ importers:
         specifier: ^3.68.3
         version: 3.68.3(graphql@16.12.0)(typescript@5.8.3)
       posthog-js:
-        specifier: ^1.158.3
+        specifier: ^1.258.3
         version: 1.258.3
       prismjs:
         specifier: ^1.30.0
