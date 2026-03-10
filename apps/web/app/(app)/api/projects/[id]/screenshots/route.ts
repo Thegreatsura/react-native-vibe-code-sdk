@@ -2,15 +2,38 @@ import { db } from '@/lib/db'
 import { projects } from '@react-native-vibe-code/database'
 import { eq, and } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium-min'
 import { put } from '@vercel/blob'
 
 export const maxDuration = 300 // 5 minutes for screenshot capture
 
 // Hosted chromium binary URL for serverless environments
 const CHROMIUM_REMOTE_URL =
-  'https://github.com/Sparticuz/chromium/releases/download/v141.0.0/chromium-v141.0.0-pack.tar'
+  'https://github.com/Sparticuz/chromium/releases/download/v141.0.0/chromium-v141.0.0-pack.x64.tar'
+
+// Cache the executable path across warm invocations
+let cachedExecutablePath: string | null = null
+let downloadPromise: Promise<string> | null = null
+
+async function getChromiumPath(): Promise<string> {
+  if (cachedExecutablePath) return cachedExecutablePath
+
+  if (!downloadPromise) {
+    const chromium = (await import('@sparticuz/chromium-min')).default
+    downloadPromise = chromium
+      .executablePath(CHROMIUM_REMOTE_URL)
+      .then((path) => {
+        cachedExecutablePath = path
+        console.log(`[Screenshot] Chromium path resolved: ${path}`)
+        return path
+      })
+      .catch((error) => {
+        downloadPromise = null // Allow retry on failure
+        throw error
+      })
+  }
+
+  return downloadPromise
+}
 
 // Helper function to wait for URL to be accessible
 async function waitForUrlReady(
@@ -23,7 +46,7 @@ async function waitForUrlReady(
       console.log(`[Screenshot] Checking URL readiness (attempt ${attempt}/${maxAttempts}): ${url}`)
       const response = await fetch(url, {
         method: 'HEAD',
-        signal: AbortSignal.timeout(10000), // 10 second timeout per attempt
+        signal: AbortSignal.timeout(10000),
       })
       if (response.ok) {
         console.log(`[Screenshot] URL is ready after ${attempt} attempt(s)`)
@@ -35,7 +58,6 @@ async function waitForUrlReady(
     }
 
     if (attempt < maxAttempts) {
-      // Wait before next attempt
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
@@ -93,13 +115,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     // Ensure URL has protocol
     const fullUrl = url.startsWith('http') ? url : `https://${url}`
 
-    // Initial delay to give the app/tunnel time to start
     console.log(`[Screenshot] Starting screenshot capture for project ${params.id}`)
     console.log(`[Screenshot] Waiting 5 seconds before checking URL readiness...`)
     await delay(5000)
 
     // Wait for the URL to be accessible with retry logic
-    const isUrlReady = await waitForUrlReady(fullUrl, 10, 3000) // 10 attempts, 3 seconds apart = up to 30+ seconds total
+    const isUrlReady = await waitForUrlReady(fullUrl, 10, 3000)
     if (!isUrlReady) {
       console.log(`[Screenshot] URL never became ready: ${fullUrl}`)
       return new Response(
@@ -108,34 +129,41 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       )
     }
 
-    // Additional delay after URL is accessible to let the app fully render
     console.log(`[Screenshot] URL is accessible, waiting 3 more seconds for app to fully load...`)
     await delay(3000)
 
     // Launch browser
-    const isDevelopment = process.env.NODE_ENV === 'development'
+    const isVercel = !!process.env.VERCEL_ENV
 
-    // In production, chromium-min downloads the binary from a remote URL
-    const executablePath = isDevelopment
-      ? process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      : await chromium.executablePath(CHROMIUM_REMOTE_URL)
+    let puppeteerCore: typeof import('puppeteer-core')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let launchOptions: any = { headless: true, defaultViewport: { width: 1920, height: 1080 } }
 
-    browser = await puppeteer.launch({
-      args: isDevelopment
-        ? puppeteer.defaultArgs()
-        : [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: { width: 1920, height: 1080 },
-      executablePath,
-      headless: true,
-    })
+    if (isVercel) {
+      const chromium = (await import('@sparticuz/chromium-min')).default
+      puppeteerCore = await import('puppeteer-core')
+      const executablePath = await getChromiumPath()
+      launchOptions = {
+        ...launchOptions,
+        args: chromium.args,
+        executablePath,
+      }
+      console.log(`[Screenshot] Launching browser with executable: ${executablePath}`)
+    } else {
+      puppeteerCore = await import('puppeteer-core')
+      launchOptions = {
+        ...launchOptions,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      }
+    }
 
+    browser = await puppeteerCore.launch(launchOptions)
     const page = await browser.newPage()
 
     // Take mobile screenshot
-    await page.setViewport({ width: 375, height: 667, deviceScaleFactor: 2 }) // iPhone SE dimensions with 2x retina scaling
+    await page.setViewport({ width: 375, height: 667, deviceScaleFactor: 2 })
     console.log(`[Screenshot] Navigating to ${fullUrl} for mobile screenshot...`)
-    await page.goto(fullUrl, { waitUntil: 'networkidle2', timeout: 60000 }) // Increased timeout for tunnel URLs
-    // Extra wait for React/app hydration
+    await page.goto(fullUrl, { waitUntil: 'networkidle2', timeout: 60000 })
     await delay(2000)
     const mobileScreenshot = await page.screenshot({ type: 'png' })
     console.log(`[Screenshot] Mobile screenshot captured`)
@@ -144,17 +172,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const mobileBlob = await put(
       `screenshots/${params.id}-mobile.png`,
       mobileScreenshot,
-      {
-        access: 'public',
-        contentType: 'image/png',
-      }
+      { access: 'public', contentType: 'image/png' }
     )
 
     // Take desktop screenshot
-    await page.setViewport({ width: 1920, height: 1080 }) // Desktop dimensions
+    await page.setViewport({ width: 1920, height: 1080 })
     console.log(`[Screenshot] Navigating to ${fullUrl} for desktop screenshot...`)
-    await page.goto(fullUrl, { waitUntil: 'networkidle2', timeout: 60000 }) // Increased timeout for tunnel URLs
-    // Extra wait for React/app hydration
+    await page.goto(fullUrl, { waitUntil: 'networkidle2', timeout: 60000 })
     await delay(2000)
     const desktopScreenshot = await page.screenshot({ type: 'png' })
     console.log(`[Screenshot] Desktop screenshot captured`)
@@ -163,16 +187,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const desktopBlob = await put(
       `screenshots/${params.id}-desktop.png`,
       desktopScreenshot,
-      {
-        access: 'public',
-        contentType: 'image/png',
-      }
+      { access: 'public', contentType: 'image/png' }
     )
 
     await browser.close()
     browser = null
 
-    // Update project with screenshot URLs from Vercel Blob
+    // Update project with screenshot URLs
     const updatedProject = await db
       .update(projects)
       .set({
@@ -183,7 +204,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       .where(and(eq(projects.id, params.id), eq(projects.userId, userID)))
       .returning()
 
-    console.log(`[Screenshot] Successfully captured and saved screenshots for project ${params.id}`)
+    console.log(`[Screenshot] Successfully captured screenshots for project ${params.id}`)
     console.log(`[Screenshot] Mobile: ${mobileBlob.url}`)
     console.log(`[Screenshot] Desktop: ${desktopBlob.url}`)
 
