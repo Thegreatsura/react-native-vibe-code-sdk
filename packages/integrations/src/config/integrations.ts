@@ -27,8 +27,8 @@ import type { IntegrationConfig } from './types'
 export const INTEGRATIONS: IntegrationConfig[] = [
   {
     id: 'anthropic-chat',
-    name: 'AI Chat (Claude)',
-    description: 'Add AI text generation with Claude',
+    name: 'AI APP (Claude)',
+    description: 'Create AI apps that uses Claude text generation',
     icon: MessageSquare,
     iconName: 'MessageSquare',
     category: 'ai',

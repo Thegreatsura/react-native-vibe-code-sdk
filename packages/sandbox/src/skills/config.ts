@@ -40,8 +40,8 @@ export interface SkillConfig {
 export const SKILL_CONFIGS: SkillConfig[] = [
   {
     id: 'anthropic-chat',
-    name: 'AI Chat (Claude)',
-    description: 'Add AI text generation with Claude',
+    name: 'AI APP (Claude)',
+    description: 'Create AI apps that uses Claude text generation',
     icon: MessageSquare,
     iconName: 'MessageSquare',
   },
