@@ -37,6 +37,9 @@ yarn-error.log*
 next-env.d.ts
 local-tamagui-app/*
 
+# Local sandbox app symlinks (machine-specific)
+packages/sandbox/local-creative-suite-app
+
 # mobile-capsule (Expo/React Native)
 mobile-capsule/**/node_modules/
 mobile-capsule/ios/Pods/
