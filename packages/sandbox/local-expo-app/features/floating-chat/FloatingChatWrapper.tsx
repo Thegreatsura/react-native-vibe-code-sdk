@@ -25,7 +25,7 @@ export function FloatingChatWrapper({ children }: { children: React.ReactNode })
         onRequestClose={() => setIsModalVisible(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
-          {PROJECT_ID ? (
+          {isModalVisible && PROJECT_ID ? (
             <ChatScreen
               projectId={PROJECT_ID}
               onClose={() => setIsModalVisible(false)}
