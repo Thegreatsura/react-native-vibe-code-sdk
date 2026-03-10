@@ -1,8 +1,8 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { Sparkles, History, Globe, MousePointer2, Mic, Server, Database, Smartphone, Zap, Plug } from 'lucide-react'
-import Image from 'next/image'
+import { Sparkles, History, Globe, MousePointer2, Mic, Server, Database, Smartphone, Zap, Plug, Image, X, ArrowRight } from 'lucide-react'
+import NextImage from 'next/image'
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
@@ -21,14 +21,14 @@ export const FEATURES = [
         <div className="flex flex-col gap-2">
            <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-foreground/5 border border-foreground/10">
             <div className="flex items-center gap-3">
-              <Image src="/claude-color.svg" alt="Claude" width={24} height={24} />
+              <NextImage src="/claude-color.svg" alt="Claude" width={24} height={24} />
               <span className="font-medium text-foreground">Claude Opus 4.5</span>
             </div>
             <span className="text-xs text-muted-foreground">default</span>
           </div>
           <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-muted-foreground/5 border border-transparent">
             <div className="flex items-center gap-3">
-              <Image src="/claude-color.svg" alt="Claude" width={24} height={24} />
+              <NextImage src="/claude-color.svg" alt="Claude" width={24} height={24} />
               <span className="font-medium text-muted-foreground">Claude Sonnet 4.5</span>
             </div>
             <span className="text-xs text-muted-foreground">optional</span>
@@ -336,7 +336,7 @@ export const FEATURES = [
         <div className="grid grid-cols-4 gap-3">
           {["https://cdn-icons-png.flaticon.com/512/5968/5968854.png", "https://cdn-icons-png.flaticon.com/512/732/732221.png", "https://cdn-icons-png.flaticon.com/512/733/733609.png", "https://cdn-icons-png.flaticon.com/512/281/281763.png"].map((src, i) => (
             <div key={i} className="h-12 w-12 rounded-xl bg-white dark:bg-gray-300 shadow-sm flex items-center justify-center p-2">
-              <Image src={src} alt="icon" width={32} height={32} className="h-8 w-8 object-contain" />
+              <NextImage src={src} alt="icon" width={32} height={32} className="h-8 w-8 object-contain" />
             </div>
           ))}
         </div>
@@ -348,6 +348,13 @@ export const FEATURES = [
 export function FeatureMarquee() {
   const [selectedFeature, setSelectedFeature] = useState<typeof FEATURES[0] | null>(null)
 
+  const handleNext = () => {
+    if (!selectedFeature) return
+    const currentIndex = FEATURES.findIndex(f => f.id === selectedFeature.id)
+    const nextIndex = (currentIndex + 1) % FEATURES.length
+    setSelectedFeature(FEATURES[nextIndex])
+  }
+
   return (
     <div className="w-full mt-4 overflow-hidden relative group">
       <div className="flex gap-4 py-8 whitespace-nowrap animate-scroll-left hover:[animation-play-state:paused]">
@@ -356,7 +363,7 @@ export function FeatureMarquee() {
               <button
                 key={`${repeatIndex}-${feature.id}`}
                 onClick={() => setSelectedFeature(feature)}
-                className="flex-shrink-0 w-[280px] p-6 rounded-2xl bg-card border border-border/50 shadow-sm hover:shadow-xl hover:border-border/80 hover:-translate-y-1 transition-all text-left flex flex-col gap-3 group/card"
+                className="flex-shrink-0 w-[280px] p-3 md:p-6 rounded-2xl bg-card border border-border/50 shadow-sm hover:shadow-xl hover:border-border/80 hover:-translate-y-1 transition-all text-left flex flex-col gap-3 group/card"
               >
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover/card:scale-110", feature.bg)}>
                   {feature.icon}
@@ -383,7 +390,14 @@ export function FeatureMarquee() {
               <DialogDescription>{selectedFeature?.description}</DialogDescription>
             </VisuallyHidden>
             {selectedFeature && (
-              <div className="bg-card border border-border/50 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+              <div className="bg-card border border-border/50 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative">
+                <button
+                  onClick={() => setSelectedFeature(null)}
+                  className="absolute top-4 right-4 z-20 p-2 rounded-full bg-background/50 backdrop-blur-sm border border-border/50 text-foreground hover:bg-background/80 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
                 <div className={cn("h-32 w-full flex items-center justify-center relative", selectedFeature.bg)}>
                   <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
                   <div className="w-16 h-16 rounded-2xl bg-card border border-border/50 shadow-lg flex items-center justify-center relative z-10 transform -rotate-6 group-hover:rotate-0 transition-transform">
@@ -399,6 +413,15 @@ export function FeatureMarquee() {
                   </div>
                   <div className="text-foreground leading-relaxed">
                     {selectedFeature.content}
+                  </div>
+                  <div className="flex gap-3 mt-8">
+                    <button
+                      onClick={handleNext}
+                      className="flex-1 py-4 rounded-2xl bg-foreground text-background font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                      Next Feature
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>

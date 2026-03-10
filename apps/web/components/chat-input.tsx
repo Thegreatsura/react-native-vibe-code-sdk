@@ -420,7 +420,7 @@ export function ChatInput({
               onContentChange={handleEditorContentChange}
               onSubmit={handleEditorSubmit}
               disableEnterSubmit={true}
-              className="min-h-[3rem] w-full relative z-10"
+              className="min-h-[6rem] md:min-h-[3rem] w-full relative z-10"
             />
           </div>
           <div className="flex p-3 gap-2 items-center justify-between">

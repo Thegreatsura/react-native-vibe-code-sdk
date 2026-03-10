@@ -264,8 +264,13 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
             onUndo={() => {}}
           />
           <div className="flex flex-1 justify-center relative items-center min-h-[400px]">
-            <div className="input-wrapper relative flex flex-col items-center justify-center w-full h-full">
+            <div className="input-wrapper relative flex flex-col items-center justify-center w-full h-full pt-12 md:pt-0">
               <div className="w-full md:absolute md:top-1/2 md:-mt-[30px] md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-20 px-4 md:px-0 ">
+                {!initialSession && (
+                  <div className="md:hidden mb-4">
+                    <FeatureMarquee />
+                  </div>
+                )}
                 <div className="relative w-full max-w-[755px] mx-auto">
                   <ChatInput
                     hideHoverModeToggle
@@ -298,11 +303,6 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
                     </div>
                   )}
                 </div>
-                {!initialSession && (
-                  <div className="md:hidden mt-0">
-                    <FeatureMarquee />
-                  </div>
-                )}
               </div>
             </div>
           </div>
