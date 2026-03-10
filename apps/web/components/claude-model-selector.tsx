@@ -177,10 +177,10 @@ function CompactSelector({
           <span className="sm:hidden">{agentType === 'opencode' ? 'OC' : 'CC'}</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[360px] relative">
+      <DialogContent className="relative">
         <button
           onClick={() => setOpen(false)}
-          className="absolute top-4 right-4 z-20 p-2 rounded-full bg-background/50 backdrop-blur-sm border border-border/50 text-foreground hover:bg-background/80 transition-all sm:hidden"
+          className="absolute top-4 right-4 z-20 p-2 rounded-full bg-background/50 backdrop-blur-sm border border-border/50 text-foreground hover:bg-background/80 transition-all"
         >
           <X className="w-4 h-4" />
         </button>
