@@ -1,0 +1,6 @@
+local-creative-suite-app/node_modules
+local-creative-suite-app/.git
+local-creative-suite-app/.expo
+local-creative-suite-app/ios
+local-creative-suite-app/android
+local-creative-suite-app/.turbo
