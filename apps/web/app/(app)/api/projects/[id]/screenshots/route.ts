@@ -25,7 +25,7 @@ async function waitForUrlReady(
         method: 'HEAD',
         signal: AbortSignal.timeout(10000), // 10 second timeout per attempt
       })
-      if (response.ok || response.status < 500) {
+      if (response.ok) {
         console.log(`[Screenshot] URL is ready after ${attempt} attempt(s)`)
         return true
       }
