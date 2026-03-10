@@ -46,6 +46,12 @@
     "build:sandbox:expo-testing": {
       "cache": false
     },
+    "build:sandbox:creative-suite": {
+      "cache": false
+    },
+    "build:sandbox:creative-suite:dev": {
+      "cache": false
+    },
     "build:standalone": {
       "cache": false
     }
