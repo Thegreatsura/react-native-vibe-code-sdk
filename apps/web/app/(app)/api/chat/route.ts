@@ -89,6 +89,9 @@ export async function POST(req: Request) {
     source,
     isRemoteControl,
     remoteSandboxId,
+    hasByokKey: !!anthropicKey,
+    byokKeyPrefix: anthropicKey ? anthropicKey.substring(0, 10) + '...' : 'none',
+    byokKeyLength: anthropicKey?.length || 0,
   })
 
   console.log('[Chat Route] All messages:', messages.map(m => ({

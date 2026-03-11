@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CheckCircle2, X, KeyRound } from 'lucide-react'
+import { CheckCircle2, X, KeyRound, Loader2 } from 'lucide-react'
 
 const STORAGE_KEY = 'byok_anthropic_key'
 
@@ -16,6 +16,8 @@ interface ByokPanelProps {
 export function ByokPanel({ onClose }: ByokPanelProps) {
   const [key, setKey] = useState('')
   const [savedKey, setSavedKey] = useState<string | null>(null)
+  const [validating, setValidating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [usage, setUsage] = useState<{ sessionsUsed: number; sessionLimit: number; hoursUsed: number; hoursLimit: number } | null>(null)
 
   useEffect(() => {
@@ -31,11 +33,29 @@ export function ByokPanel({ onClose }: ByokPanelProps) {
       .catch(() => {})
   }, [savedKey])
 
-  function handleSave() {
+  async function handleSave() {
     if (!key.trim()) return
-    localStorage.setItem(STORAGE_KEY, key.trim())
-    setSavedKey(key.trim())
-    setKey('')
+    setValidating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/byok/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key.trim() }),
+      })
+      const data = await res.json()
+      if (!data.valid) {
+        setError(data.error || 'Invalid API key')
+        return
+      }
+      localStorage.setItem(STORAGE_KEY, key.trim())
+      setSavedKey(key.trim())
+      setKey('')
+    } catch {
+      setError('Failed to validate key. Please try again.')
+    } finally {
+      setValidating(false)
+    }
   }
 
   function handleRemove() {
@@ -100,13 +120,29 @@ export function ByokPanel({ onClose }: ByokPanelProps) {
               type="password"
               placeholder="sk-ant-..."
               value={key}
-              onChange={e => setKey(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              onChange={e => { setKey(e.target.value); setError(null) }}
+              onKeyDown={e => e.key === 'Enter' && !validating && handleSave()}
+              disabled={validating}
             />
           </div>
 
-          <Button onClick={handleSave} disabled={!key.trim()} className="w-full">
-            Save to Local Storage
+          {error && (
+            <Alert className="border-red-400/50 bg-red-50 dark:bg-red-900/20">
+              <AlertDescription className="text-red-700 dark:text-red-300">
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Button onClick={handleSave} disabled={!key.trim() || validating} className="w-full">
+            {validating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Validating...
+              </>
+            ) : (
+              'Save Key'
+            )}
           </Button>
         </div>
       )}

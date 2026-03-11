@@ -241,6 +241,16 @@ export class ClaudeCodeService {
           console.log('[Claude Code Service] 📝 No image attachments to add')
         }
 
+        // Determine which API key to use — BYOK key takes priority over server key
+        const apiKeyToUse = request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || ''
+
+        // Write the API key to /claude-sdk/.env so the executor's loadEnvFile() picks it up.
+        // This is the most reliable way to pass the key since:
+        // 1. E2B's envs option may not override existing sandbox env vars
+        // 2. Shell env prefix may not propagate through bun/tsx process chain
+        // 3. The executor explicitly reads /claude-sdk/.env and sets process.env from it
+        await sandbox.files.write('/claude-sdk/.env', `ANTHROPIC_API_KEY=${apiKeyToUse}\n`)
+
         const command = `cd /claude-sdk && bun start -- --prompt="${escapedMessage}"${systemPromptArg}${sessionArg}${modelArg}${imageUrlsArg}`
 
         console.log('[Claude Code Service] Executing command with session support:', {
@@ -252,6 +262,14 @@ export class ClaudeCodeService {
           commandLength: command.length,
         })
 
+        console.log('[Claude Code Service] 🔑 BYOK DEBUG:', {
+          hasByokKey: !!request.anthropicKey,
+          byokKeyPrefix: request.anthropicKey ? request.anthropicKey.substring(0, 10) + '...' : 'none',
+          byokKeyLength: request.anthropicKey?.length || 0,
+          usingServerKey: !request.anthropicKey,
+          usedKeyPrefix: apiKeyToUse.substring(0, 10) + '...',
+          usedKeyLength: apiKeyToUse.length,
+        })
         console.log('[Claude Code Service] ⏳ About to run command in background mode (avoids 120s timeout)...')
 
         // Use background: true to avoid E2B's internal timeout on foreground commands
@@ -266,7 +284,7 @@ export class ClaudeCodeService {
           {
             background: true as const,
             envs: {
-              ANTHROPIC_API_KEY: request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || '',
+              ANTHROPIC_API_KEY: apiKeyToUse,
             },
             timeoutMs: sandboxTimeoutMs, // Match sandbox lifetime to avoid premature gRPC deadline
             onStdout: (data: string) => {
