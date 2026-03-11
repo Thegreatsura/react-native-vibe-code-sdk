@@ -187,6 +187,24 @@ export const convexProjectCredentials = pgTable('convex_project_credentials', {
   updatedAt: timestamp('updated_at').defaultNow(),
 })
 
+// Project environment variables table
+export const projectEnvVars = pgTable('project_env_vars', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  type: text('type', { enum: ['frontend', 'backend'] })
+    .notNull()
+    .default('frontend'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Commits table for tracking git commits and static bundles
 export const commits = pgTable('commits', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -389,6 +407,17 @@ export const convexProjectCredentialsRelations = relations(
   }),
 )
 
+export const projectEnvVarsRelations = relations(projectEnvVars, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectEnvVars.projectId],
+    references: [projects.id],
+  }),
+  user: one(user, {
+    fields: [projectEnvVars.userId],
+    references: [user.id],
+  }),
+}))
+
 export const chatRelations = relations(chat, ({ one, many }) => ({
   user: one(user, {
     fields: [chat.userId],
@@ -575,6 +604,8 @@ export type Subscription = typeof subscriptions.$inferSelect
 export type PromptMessage = typeof promptMessages.$inferSelect
 export type Commit = typeof commits.$inferSelect
 export type ConvexProjectCredential = typeof convexProjectCredentials.$inferSelect
+export type ProjectEnvVar = typeof projectEnvVars.$inferSelect
+export type NewProjectEnvVar = typeof projectEnvVars.$inferInsert
 export type TwitterLink = typeof twitterLinks.$inferSelect
 export type XBotReply = typeof xBotReplies.$inferSelect
 export type XBotState = typeof xBotState.$inferSelect
