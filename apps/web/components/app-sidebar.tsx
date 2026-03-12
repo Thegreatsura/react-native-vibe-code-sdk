@@ -155,7 +155,7 @@ function SidebarNav({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {menuItems.map((item) => (
-                <SidebarMenuItem key={item.id} className={item.spacer && 'border-t-1 border-gray-300 pt-2 mt-2'}>
+                <SidebarMenuItem key={item.id} className={cn(item.spacer && 'border-t-1 border-gray-300 pt-2 mt-2', item.id === 'backend' && 'hidden')}>
                   <SidebarMenuButton
                     tooltip={item.label}
                     isActive={activePanel === item.id}
