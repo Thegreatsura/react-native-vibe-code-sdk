@@ -16,8 +16,9 @@ import type { AISkill } from '@/lib/skills'
 import { TemplateId } from '@/lib/templates'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { SetStateAction, useEffect, useState } from 'react'
+import { SetStateAction, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { SubscriptionModal } from '@/components/subscription-modal'
 
 interface HomeClientProps {
   initialSession: any
@@ -59,6 +60,8 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
 
   const posthog = usePostHog()
   const [isAuthDialogOpen, setAuthDialog] = useState(false)
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false)
+  const hasActiveSubscriptionRef = useRef<boolean | null>(null)
   const { selectedModel, setSelectedModel } = useClaudeModel()
   const { agentType: storedAgentType, setAgentType, getDefaultModelForAgent } = useAgentType()
 
@@ -106,6 +109,19 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
     }
   }, [searchParams, toast])
 
+  // Fetch subscription status once when user is logged in
+  useEffect(() => {
+    if (!initialSession?.user?.id) return
+    fetch('/api/subscription/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          hasActiveSubscriptionRef.current = data.hasSubscription && data.status === 'active'
+        }
+      })
+      .catch(() => {})
+  }, [initialSession?.user?.id])
+
   const filteredModels = modelsList.models.filter((model) => {
     if (process.env.NEXT_PUBLIC_HIDE_LOCAL_MODELS) {
       return model.providerId !== 'ollama'
@@ -122,6 +138,12 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
 
     if (!initialSession) {
       return setAuthDialog(true)
+    }
+
+    // Show subscription modal for free users
+    if (hasActiveSubscriptionRef.current === false) {
+      setIsSubscriptionModalOpen(true)
+      return
     }
 
     // Generate UUID and navigate to project page with first message
@@ -251,6 +273,10 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
   return (
     <>
       <AuthDialog open={isAuthDialogOpen} setOpen={setAuthDialog} />
+      <SubscriptionModal
+        open={isSubscriptionModalOpen}
+        onOpenChange={setIsSubscriptionModalOpen}
+      />
       <div className="grid w-full md:grid-cols-2 md:h-full">
         <div className="flex flex-col w-full h-full max-w-6xl mx-auto px-0 overflow-auto col-span-2">
           <NavHeader
