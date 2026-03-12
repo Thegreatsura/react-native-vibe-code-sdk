@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { v4 as uuidv4 } from 'uuid'
+import { useSession } from '@/lib/auth/client'
 
 // Files that make up the floating chat component in the sandbox
 const FLOATING_CHAT_FILES = [
@@ -22,10 +25,42 @@ interface FileResult {
 }
 
 export function AdminPanel() {
+  const router = useRouter()
+  const { data: session } = useSession()
   const [projectId, setProjectId] = useState('')
   const [results, setResults] = useState<FileResult[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [overallStatus, setOverallStatus] = useState<string>('')
+  const [isCreatingSuite, setIsCreatingSuite] = useState(false)
+  const [createSuiteError, setCreateSuiteError] = useState<string | null>(null)
+
+  const createCreativeSuite = async () => {
+    if (!session?.user?.id) return
+    setIsCreatingSuite(true)
+    setCreateSuiteError(null)
+    const newProjectId = uuidv4()
+    try {
+      const res = await fetch('/api/create-container', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: newProjectId,
+          userID: session.user.id,
+          chooseTemplate: 'creative-suite',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setCreateSuiteError(err.error || 'Failed to create project')
+        setIsCreatingSuite(false)
+        return
+      }
+      router.push(`/p/${newProjectId}`)
+    } catch (err: any) {
+      setCreateSuiteError(err.message)
+      setIsCreatingSuite(false)
+    }
+  }
 
   const updateChatComponent = async () => {
     if (!projectId.trim()) return
@@ -105,6 +140,24 @@ export function AdminPanel() {
       <div>
         <h1 className="text-2xl font-bold">Admin Panel</h1>
         <p className="text-muted-foreground mt-1">Push local code changes to running sandboxes</p>
+      </div>
+
+      {/* Create Creative Suite */}
+      <div className="border rounded-lg p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Create Creative Suite</h2>
+        <p className="text-sm text-muted-foreground">
+          Spin up a new sandbox using the <code className="bg-muted px-1 rounded">creative-suite</code> template and open it immediately.
+        </p>
+        <button
+          onClick={createCreativeSuite}
+          disabled={isCreatingSuite || !session?.user?.id}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium disabled:opacity-50"
+        >
+          {isCreatingSuite ? 'Creating…' : 'Create Creative Suite'}
+        </button>
+        {createSuiteError && (
+          <p className="text-sm text-red-600">{createSuiteError}</p>
+        )}
       </div>
 
       {/* Update Chat Component */}

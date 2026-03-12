@@ -272,7 +272,7 @@ interface CreateContainerRequest {
   userID: string
   teamID?: string
   template?: string
-  chooseTemplate?: 'expo' | 'tamagui' | 'expo-testing'
+  chooseTemplate?: 'expo' | 'tamagui' | 'expo-testing' | 'creative-suite'
   firstMessage?: { role: string; content: string }
 }
 
@@ -378,7 +378,8 @@ export async function POST(req: NextRequest) {
     const templateId = {
       expo: 'sm3r39vktkmu37lna0qa',
       tamagui: '10aeyh6gcn9lmorirs2z',
-      'expo-testing': 'wxe2y93k4kafhbwqg2br'
+      'expo-testing': 'wxe2y93k4kafhbwqg2br',
+      'creative-suite': 'zfobltp0iwpu6gzs0k8k',
     }
     // Prioritize chooseTemplate from request body, fallback to env var, then default to 'expo'
     const templateSelection: keyof typeof templateId =
@@ -413,7 +414,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate app name from first message
-    let appName = 'my-app' // Default fallback
+    let appName = templateSelection === 'creative-suite' ? 'creative-suite' : 'my-app'
     if (firstMessage) {
       try {
         console.log('Generating app name from first message...')
