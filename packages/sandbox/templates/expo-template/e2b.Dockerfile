@@ -2,8 +2,11 @@
 FROM imbios/bun-node:20-slim
 
 # Fix dpkg issues and install system dependencies
+# Install gnupg first to fix GPG key issues with the base image
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
+    apt-get update -o Acquire::AllowInsecureRepositories=true && \
+    apt-get install -y --allow-unauthenticated gnupg ca-certificates && \
     apt-get update && \
     apt-get install -y --no-install-recommends --fix-broken \
     git \
@@ -11,7 +14,6 @@ RUN apt-get clean && \
     wget \
     unzip \
     zip \
-    ca-certificates \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
