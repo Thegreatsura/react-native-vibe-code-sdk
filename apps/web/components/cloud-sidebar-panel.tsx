@@ -61,7 +61,8 @@ export function CloudSidebarPanel({
 
       posthog.capture('cloud_enabled', { project_id: projectId })
       onCloudEnabled?.()
-      setShowSetupComplete(true)
+      // Delay to let any portal DOM cleanup finish before opening the new dialog
+      setTimeout(() => setShowSetupComplete(true), 300)
     } catch (error) {
       console.error('Failed to enable cloud:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to enable cloud')
