@@ -416,6 +416,11 @@ export class ClaudeCodeService {
                       continue
                     }
 
+                    // Log task failure details for debugging
+                    if (messageContent.includes('Task failed')) {
+                      console.error('[Claude Code Service] ❌ TASK FAILED:', messageContent)
+                    }
+
                     // Slim messages are always small and complete — send directly
                     callbacks.onMessage(messageContent)
                   }
@@ -603,6 +608,19 @@ export class ClaudeCodeService {
       if (execution && execution.exitCode !== 0 && !completionDetected) {
         const errorMessage = `Claude Code execution failed with exit code ${execution.exitCode}: ${execution.stderr}`
         console.error('[Claude Code Service] Execution failed:', errorMessage)
+
+        // Clear the session ID so the next message starts a fresh session
+        // instead of repeatedly failing to resume a broken session
+        if (request.sessionId) {
+          try {
+            console.log('[Claude Code Service] Clearing stale session ID after failure')
+            await db.update(projects)
+              .set({ conversationId: null, updatedAt: new Date() })
+              .where(eq(projects.id, request.projectId))
+          } catch (dbError) {
+            console.error('[Claude Code Service] Failed to clear session ID:', dbError)
+          }
+        }
 
         // Trigger GitHub commit for failed execution (fire and forget)
         this.triggerGitHubCommit(

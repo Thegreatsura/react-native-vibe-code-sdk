@@ -142,40 +142,79 @@ export async function runExecutor(
       console.log('Resuming session:', args.sessionId)
     }
 
-    for await (const message of query({
-      prompt: finalPrompt,
-      options: {
-        cwd,
-        permissionMode: 'bypassPermissions',
-        // Load skills from filesystem - required for Agent Skills to work
-        settingSources: ['user', 'project'],
-        // Pass system prompt so agent knows it's a React Native/Expo builder
-        ...(systemPromptOption && { systemPrompt: systemPromptOption }),
-        // Pass model selection if provided
-        ...(args.model && { model: args.model }),
-        // Add hooks if configured
-        ...(Object.keys(hooksConfig).length > 0 && { hooks: hooksConfig }),
-        // Resume previous session for conversation continuity and prompt caching
-        ...(args.sessionId && { resume: args.sessionId }),
-      } as any,
-    })) {
-      messages.push(message)
+    // Build base query options (without resume) so we can retry without it
+    const baseOptions: any = {
+      cwd,
+      permissionMode: 'bypassPermissions',
+      // Load skills from filesystem - required for Agent Skills to work
+      settingSources: ['user', 'project'],
+      // Pass system prompt so agent knows it's a React Native/Expo builder
+      ...(systemPromptOption && { systemPrompt: systemPromptOption }),
+      // Pass model selection if provided
+      ...(args.model && { model: args.model }),
+      // Add hooks if configured
+      ...(Object.keys(hooksConfig).length > 0 && { hooks: hooksConfig }),
+    }
 
-      // Stream slimified messages — small JSON that never spans multiple stdout chunks
-      const slimMessages = slimifyMessage(message)
-      for (const slim of slimMessages) {
-        console.log(`Streaming: ${JSON.stringify(slim)}`)
-      }
+    // Try with resume first, fall back to fresh session if resume fails
+    let useResume = !!args.sessionId
+    let taskFailed = false
 
-      // Also stream completion status separately for easier detection
-      if (message.type === 'result') {
-        if (message.subtype === 'success') {
-          console.log(`Streaming: Task completed successfully`)
-          console.log(`Streaming: Cost: $${message.total_cost_usd.toFixed(4)}, Duration: ${(message.duration_ms / 1000).toFixed(2)}s`)
-        } else {
-          console.log(`Streaming: Task failed: ${message.subtype}`)
+    const runQuery = async (withResume: boolean) => {
+      const options = withResume
+        ? { ...baseOptions, resume: args.sessionId }
+        : baseOptions
+
+      for await (const message of query({
+        prompt: finalPrompt,
+        options,
+      })) {
+        messages.push(message)
+
+        // Stream slimified messages — small JSON that never spans multiple stdout chunks
+        const slimMessages = slimifyMessage(message)
+        for (const slim of slimMessages) {
+          console.log(`Streaming: ${JSON.stringify(slim)}`)
+        }
+
+        // Also stream completion status separately for easier detection
+        if (message.type === 'result') {
+          if (message.subtype === 'success') {
+            console.log(`Streaming: Task completed successfully`)
+            console.log(`Streaming: Cost: $${message.total_cost_usd.toFixed(4)}, Duration: ${(message.duration_ms / 1000).toFixed(2)}s`)
+          } else {
+            const errors = (message as any).errors || []
+            console.log(`Streaming: Task failed: ${message.subtype}`)
+            console.log(`Streaming: Task failed errors: ${JSON.stringify(errors)}`)
+            console.log(`Streaming: Task failed stop_reason: ${(message as any).stop_reason}`)
+            taskFailed = true
+          }
         }
       }
+    }
+
+    try {
+      await runQuery(useResume)
+    } catch (resumeError) {
+      // If resume was used and it failed, retry without resume (fresh session)
+      if (useResume) {
+        console.warn('Resume failed, retrying without resume:', resumeError instanceof Error ? resumeError.message : String(resumeError))
+        console.log('Streaming: Session resume failed, starting fresh session...')
+        messages.length = 0 // Clear any partial messages
+        taskFailed = false
+        await runQuery(false)
+      } else {
+        throw resumeError
+      }
+    }
+
+    // If task failed with resume, retry without resume
+    if (taskFailed && useResume) {
+      console.warn('Task failed with resume, retrying without resume...')
+      console.log('Streaming: Retrying without session resume...')
+      messages.length = 0
+      taskFailed = false
+      await runQuery(false)
     }
 
     console.log('Query completed successfully')

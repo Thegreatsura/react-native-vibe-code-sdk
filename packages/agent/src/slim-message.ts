@@ -50,6 +50,7 @@ export interface SlimResult {
   duration_ms?: number
   total_cost_usd?: number
   result?: string
+  errors?: string[]
   session_id?: string
 }
 
@@ -177,6 +178,11 @@ export function slimifyMessage(message: SDKMessage): SlimMessage[] {
       // Include result text (usually small)
       if (typeof msg.result === 'string') {
         slim.result = msg.result
+      }
+
+      // Include error details for error results
+      if (Array.isArray(msg.errors) && msg.errors.length > 0) {
+        slim.errors = msg.errors
       }
 
       return [slim]
