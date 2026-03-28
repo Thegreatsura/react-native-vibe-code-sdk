@@ -31,6 +31,7 @@ export interface AppGenerationRequest {
   claudeModel?: string  // Model ID for Claude (e.g., claude-sonnet-4-5-20250929)
   skills?: string[]  // Selected AI skills (e.g., 'anthropic-chat', 'openai-dalle-3')
   anthropicKey?: string  // BYOK: user-provided Anthropic API key
+  moonshotKey?: string  // BYOK: user-provided Moonshot API key (for Kimi K2)
   agentType?: string  // Agent type (claude-code, opencode, kimi-k2)
 }
 
@@ -197,8 +198,12 @@ export class ClaudeCodeService {
           console.error('[Claude Code Service] ❌ Failed to check cloud status:', dbError)
         }
 
-        // Determine if this is a Kimi K2 request (used for settings and env config below)
+        // Determine if this is a Kimi K2 request and resolve the API key early
+        // (used for settings, env file, and sandbox envs below)
         const isKimiK2 = request.agentType === 'kimi-k2'
+        const apiKeyToUse = isKimiK2
+          ? (request.moonshotKey || globalThis.process.env.MOONSHOT_API_KEY || '')
+          : (request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || '')
 
         // Write Claude settings to skip the WebFetch preflight call to claude.ai.
         // Inside an E2B sandbox the preflight request (GET claude.ai/api/web/domain_info)
@@ -211,7 +216,7 @@ export class ClaudeCodeService {
           // For Kimi K2, configure the Claude SDK to use Moonshot's Anthropic-compatible API
           if (isKimiK2) {
             claudeSettings.env = {
-              ANTHROPIC_AUTH_TOKEN: globalThis.process.env.MOONSHOT_API_KEY || '',
+              ANTHROPIC_AUTH_TOKEN: apiKeyToUse,
               ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic',
             }
           }
@@ -255,11 +260,6 @@ export class ClaudeCodeService {
         } else {
           console.log('[Claude Code Service] 📝 No image attachments to add')
         }
-
-        // Determine which API key and base URL to use based on agent type
-        const apiKeyToUse = isKimiK2
-          ? (globalThis.process.env.MOONSHOT_API_KEY || '')
-          : (request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || '')
 
         // Write the API key (and optional base URL) to /claude-sdk/.env so the executor's loadEnvFile() picks it up.
         // This is the most reliable way to pass the key since:

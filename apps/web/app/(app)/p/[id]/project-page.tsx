@@ -333,6 +333,9 @@ export function ProjectPageInternal({ opencodeEnabled = false, template: templat
         anthropicKey: typeof window !== 'undefined'
           ? (localStorage.getItem('byok_anthropic_key') || undefined)
           : undefined,
+        moonshotKey: typeof window !== 'undefined'
+          ? (localStorage.getItem('byok_moonshot_key') || undefined)
+          : undefined,
         messages: messageToSend ? [messageToSend] : [],
       }
 

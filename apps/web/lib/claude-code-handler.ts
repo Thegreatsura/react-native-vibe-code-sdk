@@ -24,6 +24,7 @@ export interface ClaudeCodeHandlerRequest {
   claudeModel?: string
   skills?: string[]
   anthropicKey?: string
+  moonshotKey?: string
   agentType?: string
 }
 
@@ -208,6 +209,7 @@ export async function handleClaudeCodeGeneration(
         claudeModel: request.claudeModel,
         skills: request.skills,
         anthropicKey: request.anthropicKey,
+        moonshotKey: request.moonshotKey,
         agentType: request.agentType,
       },
       sandbox,

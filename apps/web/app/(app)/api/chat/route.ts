@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     agentType,
     source,
     anthropicKey,
+    moonshotKey,
   }: {
     messages: UIMessage[]
     projectId: string
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     agentType?: AgentType
     source?: string
     anthropicKey?: string
+    moonshotKey?: string
   } = await req.json()
 
   // Mobile (remote-control) requests never include userId — they only send projectId + messages
@@ -107,7 +109,8 @@ export async function POST(req: Request) {
   console.log('[Chat Route] lastUserMessageId:', lastUserMessageId)
 
   // Check message usage limits before processing (skip for BYOK users)
-  if (userId && lastUserMessage && !anthropicKey) {
+  const hasByokKey = !!anthropicKey || (agentType === 'kimi-k2' && !!moonshotKey)
+  if (userId && lastUserMessage && !hasByokKey) {
     console.log('[Chat Route] Checking message usage limits for user:', userId)
     const usageCheck = await canUserSendMessage(userId)
 
@@ -242,7 +245,7 @@ export async function POST(req: Request) {
   }
 
   // Check sandbox hours for BYOK users
-  if (anthropicKey && userId) {
+  if (hasByokKey && userId) {
     const sandboxCheck = await canUserCreateSandbox(userId)
     if (!sandboxCheck.canCreate) {
       const sandboxLimitData = {
@@ -298,7 +301,7 @@ export async function POST(req: Request) {
   }
 
   // Increment message usage count before processing (skip for BYOK users)
-  if (!anthropicKey) {
+  if (!hasByokKey) {
     console.log('[Chat Route] Incrementing message usage for user:', userId)
     const usageResult = await incrementMessageUsage(userId)
 
@@ -478,6 +481,7 @@ export async function POST(req: Request) {
                         skills,
                         agentType,
                         anthropicKey,
+                        moonshotKey,
                       },
                       {
                         onMessage: (message: string) => {
