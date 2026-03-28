@@ -65,8 +65,8 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
   const { selectedModel, setSelectedModel } = useClaudeModel()
   const { agentType: storedAgentType, setAgentType, getDefaultModelForAgent } = useAgentType()
 
-  // When opencode flag is disabled, always force claude-code
-  const agentType = opencodeEnabled ? storedAgentType : 'claude-code'
+  // When opencode flag is disabled, allow claude-code and kimi-k2 but not opencode
+  const agentType = opencodeEnabled ? storedAgentType : (storedAgentType === 'opencode' ? 'claude-code' : storedAgentType)
 
   // Handle ui-prompt query param to pre-fill chat input
   useEffect(() => {
@@ -317,10 +317,11 @@ export function HomeClient({ initialSession, opencodeEnabled = false }: HomeClie
                     selectedModel={selectedModel}
                     onModelChange={setSelectedModel}
                     agentType={agentType}
-                    onAgentTypeChange={opencodeEnabled ? (newType) => {
+                    onAgentTypeChange={(newType) => {
                       setAgentType(newType)
                       setSelectedModel(getDefaultModelForAgent(newType))
-                    } : undefined}
+                    }}
+                    opencodeEnabled={opencodeEnabled}
                     onSkillsChange={setSelectedSkills}
                   />
                   {!initialSession && (

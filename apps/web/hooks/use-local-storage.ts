@@ -21,6 +21,19 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     }
   });
 
+  // Sync state with localStorage on mount (handles SSR hydration mismatch)
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        setStoredValue(parsed);
+      }
+    } catch (error) {
+      // ignore
+    }
+  }, [key]);
+
   // Update localStorage when state changes
   const setValue = (value: T | ((val: T) => T)) => {
     try {

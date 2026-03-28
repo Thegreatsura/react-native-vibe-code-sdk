@@ -24,6 +24,7 @@ export interface ClaudeCodeHandlerRequest {
   claudeModel?: string
   skills?: string[]
   anthropicKey?: string
+  agentType?: string
 }
 
 export interface ClaudeCodeStreamCallbacks {
@@ -207,6 +208,7 @@ export async function handleClaudeCodeGeneration(
         claudeModel: request.claudeModel,
         skills: request.skills,
         anthropicKey: request.anthropicKey,
+        agentType: request.agentType,
       },
       sandbox,
       {

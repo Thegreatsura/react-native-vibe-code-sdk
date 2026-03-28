@@ -31,6 +31,7 @@ export interface AppGenerationRequest {
   claudeModel?: string  // Model ID for Claude (e.g., claude-sonnet-4-5-20250929)
   skills?: string[]  // Selected AI skills (e.g., 'anthropic-chat', 'openai-dalle-3')
   anthropicKey?: string  // BYOK: user-provided Anthropic API key
+  agentType?: string  // Agent type (claude-code, opencode, kimi-k2)
 }
 
 export interface AppGenerationResponse {
@@ -196,6 +197,9 @@ export class ClaudeCodeService {
           console.error('[Claude Code Service] ❌ Failed to check cloud status:', dbError)
         }
 
+        // Determine if this is a Kimi K2 request (used for settings and env config below)
+        const isKimiK2 = request.agentType === 'kimi-k2'
+
         // Write Claude settings to skip the WebFetch preflight call to claude.ai.
         // Inside an E2B sandbox the preflight request (GET claude.ai/api/web/domain_info)
         // can hang indefinitely when the packet is silently dropped rather than refused.
@@ -203,11 +207,19 @@ export class ClaudeCodeService {
         try {
           const claudeSettingsDir = '/root/.claude'
           await sandbox.commands.run(`mkdir -p ${claudeSettingsDir}`, { timeoutMs: 5000 })
+          const claudeSettings: Record<string, any> = { skipWebFetchPreflight: true }
+          // For Kimi K2, configure the Claude SDK to use Moonshot's Anthropic-compatible API
+          if (isKimiK2) {
+            claudeSettings.env = {
+              ANTHROPIC_AUTH_TOKEN: globalThis.process.env.MOONSHOT_API_KEY || '',
+              ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic',
+            }
+          }
           await sandbox.files.write(
             `${claudeSettingsDir}/settings.json`,
-            JSON.stringify({ skipWebFetchPreflight: true }, null, 2)
+            JSON.stringify(claudeSettings, null, 2)
           )
-          console.log('[Claude Code Service] ✅ Written skipWebFetchPreflight=true to Claude settings')
+          console.log('[Claude Code Service] ✅ Written Claude settings:', Object.keys(claudeSettings))
         } catch (settingsError) {
           console.error('[Claude Code Service] ❌ Failed to write Claude settings:', settingsError)
         }
@@ -244,15 +256,22 @@ export class ClaudeCodeService {
           console.log('[Claude Code Service] 📝 No image attachments to add')
         }
 
-        // Determine which API key to use — BYOK key takes priority over server key
-        const apiKeyToUse = request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || ''
+        // Determine which API key and base URL to use based on agent type
+        const apiKeyToUse = isKimiK2
+          ? (globalThis.process.env.MOONSHOT_API_KEY || '')
+          : (request.anthropicKey || globalThis.process.env.ANTHROPIC_API_KEY || '')
 
-        // Write the API key to /claude-sdk/.env so the executor's loadEnvFile() picks it up.
+        // Write the API key (and optional base URL) to /claude-sdk/.env so the executor's loadEnvFile() picks it up.
         // This is the most reliable way to pass the key since:
         // 1. E2B's envs option may not override existing sandbox env vars
         // 2. Shell env prefix may not propagate through bun/tsx process chain
         // 3. The executor explicitly reads /claude-sdk/.env and sets process.env from it
-        await sandbox.files.write('/claude-sdk/.env', `ANTHROPIC_API_KEY=${apiKeyToUse}\n`)
+        let envContent = `ANTHROPIC_API_KEY=${apiKeyToUse}\n`
+        if (isKimiK2) {
+          envContent += `ANTHROPIC_AUTH_TOKEN=${apiKeyToUse}\n`
+          envContent += `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic\n`
+        }
+        await sandbox.files.write('/claude-sdk/.env', envContent)
 
         const convexDeployArg = cloudEnabled ? ' --with-convex-deploy' : ''
 
@@ -290,6 +309,10 @@ export class ClaudeCodeService {
             background: true as const,
             envs: {
               ANTHROPIC_API_KEY: apiKeyToUse,
+              ...(isKimiK2 && {
+                ANTHROPIC_AUTH_TOKEN: apiKeyToUse,
+                ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic',
+              }),
             },
             timeoutMs: sandboxTimeoutMs, // Match sandbox lifetime to avoid premature gRPC deadline
             onStdout: (data: string) => {

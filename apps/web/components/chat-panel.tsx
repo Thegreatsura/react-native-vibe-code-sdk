@@ -29,8 +29,9 @@ interface ChatPanelProps {
   isWaitingForFirstMessage?: boolean
   selectedModel: string
   onModelChange: (modelId: string) => void
-  agentType?: 'claude-code' | 'opencode'
-  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
+  agentType?: 'claude-code' | 'opencode' | 'kimi-k2'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode' | 'kimi-k2') => void
+  opencodeEnabled?: boolean
   imageAttachments?: ImageAttachment[]
   onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
   selectedSkills?: string[]
@@ -58,6 +59,7 @@ export function ChatPanel({
   onModelChange,
   agentType,
   onAgentTypeChange,
+  opencodeEnabled = false,
   imageAttachments = [],
   onImageAttachmentsChange,
   selectedSkills = [],
@@ -129,6 +131,7 @@ export function ChatPanel({
           onModelChange={props.onModelChange}
           agentType={props.agentType}
           onAgentTypeChange={props.onAgentTypeChange}
+          opencodeEnabled={opencodeEnabled}
           imageAttachments={props.imageAttachments}
           onImageAttachmentsChange={props.onImageAttachmentsChange}
           selectedSkills={props.selectedSkills}

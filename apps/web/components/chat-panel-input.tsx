@@ -68,8 +68,9 @@ interface ChatPanelInputProps {
   onScrollToBottom?: () => void
   selectedModel: string
   onModelChange: (modelId: string) => void
-  agentType?: 'claude-code' | 'opencode'
-  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
+  agentType?: 'claude-code' | 'opencode' | 'kimi-k2'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode' | 'kimi-k2') => void
+  opencodeEnabled?: boolean
   imageAttachments?: ImageAttachment[]
   onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
   selectedSkills?: string[]
@@ -96,6 +97,7 @@ export const ChatPanelInput = memo(function ChatPanelInput({
   onModelChange,
   agentType,
   onAgentTypeChange,
+  opencodeEnabled,
   imageAttachments = [],
   onImageAttachmentsChange,
   selectedSkills = [],
@@ -708,6 +710,7 @@ export const ChatPanelInput = memo(function ChatPanelInput({
               compact
               agentType={agentType}
               onAgentTypeChange={onAgentTypeChange}
+              opencodeEnabled={opencodeEnabled}
             />
           </div>
           <div className="flex space-x-2">

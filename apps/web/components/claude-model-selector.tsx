@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -33,10 +33,12 @@ interface ClaudeModelSelectorProps {
   compact?: boolean
   agentType?: AgentType
   onAgentTypeChange?: (agentType: AgentType) => void
+  opencodeEnabled?: boolean
 }
 
 const AGENTS: { id: AgentType; name: string; description: string }[] = [
   { id: 'claude-code', name: 'Claude Code', description: "Anthropic's agent SDK" },
+  { id: 'kimi-k2', name: 'Claude Code - Kimi K2', description: 'Moonshot Kimi K2 via Claude SDK' },
   { id: 'opencode', name: 'OpenCode', description: 'Open-source coding agent' },
 ]
 
@@ -47,9 +49,12 @@ export function ClaudeModelSelector({
   compact = false,
   agentType = 'claude-code',
   onAgentTypeChange,
+  opencodeEnabled = false,
 }: ClaudeModelSelectorProps) {
   const models = getModelsForAgent(agentType)
   const currentModel = getClaudeModelById(value)
+  // Filter agents: always show claude-code and kimi-k2, only show opencode when enabled
+  const availableAgents = AGENTS.filter(a => a.id !== 'opencode' || opencodeEnabled)
 
   // Compact mode: single button that opens a dialog
   if (compact) {
@@ -62,6 +67,7 @@ export function ClaudeModelSelector({
         onAgentTypeChange={onAgentTypeChange}
         models={models}
         currentModel={currentModel}
+        availableAgents={availableAgents}
       />
     )
   }
@@ -84,7 +90,7 @@ export function ClaudeModelSelector({
             </div>
           </SelectTrigger>
           <SelectContent>
-            {AGENTS.map((agent) => (
+            {availableAgents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 <div className="flex flex-col">
                   <span className="font-medium">{agent.name}</span>
@@ -129,6 +135,7 @@ function CompactSelector({
   onAgentTypeChange,
   models,
   currentModel,
+  availableAgents,
 }: {
   value: string
   onChange: (modelId: string) => void
@@ -137,6 +144,7 @@ function CompactSelector({
   onAgentTypeChange?: (agentType: AgentType) => void
   models: ReturnType<typeof getModelsForAgent>
   currentModel: ReturnType<typeof getClaudeModelById>
+  availableAgents: typeof AGENTS
 }) {
   const [open, setOpen] = useState(false)
 
@@ -144,10 +152,14 @@ function CompactSelector({
   const resolvedValue = resolveModelForAgent(value, agentType)
 
   // Auto-correct the parent if stored value doesn't match
-  if (resolvedValue !== value) {
-    // Schedule for next tick to avoid setState during render
-    setTimeout(() => onChange(resolvedValue), 0)
-  }
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  useEffect(() => {
+    const resolved = resolveModelForAgent(value, agentType)
+    if (resolved !== value) {
+      onChangeRef.current(resolved)
+    }
+  }, [value, agentType])
 
   const handleAgentChange = (newAgent: AgentType) => {
     if (onAgentTypeChange) {
@@ -194,7 +206,7 @@ function CompactSelector({
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Agent</label>
               <div className="grid grid-cols-2 gap-2">
-                {AGENTS.map((agent) => (
+                {availableAgents.map((agent) => (
                   <button
                     key={agent.id}
                     type="button"

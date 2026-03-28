@@ -104,14 +104,14 @@ export function ProjectPageInternal({ opencodeEnabled = false, template: templat
   // Agent type selection (claude-code or opencode)
   const { agentType: storedAgentType, setAgentType } = useAgentType()
 
-  // When opencode flag is disabled, always force claude-code
-  const agentType = opencodeEnabled ? storedAgentType : 'claude-code'
+  // When opencode flag is disabled, allow claude-code and kimi-k2 but not opencode
+  const agentType = opencodeEnabled ? storedAgentType : (storedAgentType === 'opencode' ? 'claude-code' : storedAgentType)
 
   // Initialize agent type from URL if coming from home page
   useEffect(() => {
-    if (agentTypeFromUrl && (agentTypeFromUrl === 'opencode' || agentTypeFromUrl === 'claude-code')) {
-      setAgentType(agentTypeFromUrl)
-      setSelectedModel(resolveModelForAgent(selectedModel, agentTypeFromUrl))
+    if (agentTypeFromUrl && (agentTypeFromUrl === 'opencode' || agentTypeFromUrl === 'claude-code' || agentTypeFromUrl === 'kimi-k2')) {
+      setAgentType(agentTypeFromUrl as any)
+      setSelectedModel(resolveModelForAgent(selectedModel, agentTypeFromUrl as any))
     }
   }, [agentTypeFromUrl, setAgentType, setSelectedModel]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2453,7 +2453,8 @@ export function ProjectPageInternal({ opencodeEnabled = false, template: templat
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
                   agentType={agentType}
-                  onAgentTypeChange={opencodeEnabled ? setAgentType : undefined}
+                  onAgentTypeChange={setAgentType}
+                  opencodeEnabled={opencodeEnabled}
                   imageAttachments={imageAttachments}
                   onImageAttachmentsChange={setImageAttachments}
                   selectedSkills={selectedSkills}
@@ -2576,7 +2577,8 @@ export function ProjectPageInternal({ opencodeEnabled = false, template: templat
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}
                   agentType={agentType}
-                  onAgentTypeChange={opencodeEnabled ? setAgentType : undefined}
+                  onAgentTypeChange={setAgentType}
+                  opencodeEnabled={opencodeEnabled}
                   imageAttachments={imageAttachments}
                   onImageAttachmentsChange={setImageAttachments}
                   selectedSkills={selectedSkills}

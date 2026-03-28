@@ -2,7 +2,7 @@ import { handleClaudeCodeGeneration } from './claude-code-handler'
 import { handleOpenCodeGeneration } from './open-code-handler'
 import type { ClaudeCodeHandlerRequest, ClaudeCodeStreamCallbacks } from './claude-code-handler'
 
-export type AgentType = 'claude-code' | 'opencode'
+export type AgentType = 'claude-code' | 'opencode' | 'kimi-k2'
 
 export interface AgentHandlerRequest extends ClaudeCodeHandlerRequest {
   agentType?: AgentType

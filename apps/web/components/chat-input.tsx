@@ -45,6 +45,7 @@ export function ChatInput({
   onModelChange,
   agentType,
   onAgentTypeChange,
+  opencodeEnabled,
   onSkillsChange,
   suggestionTip,
 }: {
@@ -65,8 +66,9 @@ export function ChatInput({
   isAuthenticated?: boolean
   selectedModel: string
   onModelChange: (modelId: string) => void
-  agentType?: 'claude-code' | 'opencode'
-  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
+  agentType?: 'claude-code' | 'opencode' | 'kimi-k2'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode' | 'kimi-k2') => void
+  opencodeEnabled?: boolean
   onSkillsChange?: (skills: AISkill[]) => void
   suggestionTip?: string
 }) {
@@ -467,6 +469,7 @@ export function ChatInput({
                 compact
                 agentType={agentType}
                 onAgentTypeChange={onAgentTypeChange}
+                opencodeEnabled={opencodeEnabled}
               />
             </div>
 

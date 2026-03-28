@@ -43,8 +43,8 @@ export interface ChatPanelProps {
   isWaitingForFirstMessage?: boolean
   selectedModel: string
   onModelChange: (modelId: string) => void
-  agentType?: 'claude-code' | 'opencode'
-  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
+  agentType?: 'claude-code' | 'opencode' | 'kimi-k2'
+  onAgentTypeChange?: (agentType: 'claude-code' | 'opencode' | 'kimi-k2') => void
   imageAttachments?: ImageAttachment[]
   onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
   selectedSkills?: string[]
@@ -80,8 +80,8 @@ export interface ChatPanelProps {
     latestSelection?: HoverSelectionData | null
     selectedModel: string
     onModelChange: (modelId: string) => void
-    agentType?: 'claude-code' | 'opencode'
-    onAgentTypeChange?: (agentType: 'claude-code' | 'opencode') => void
+    agentType?: 'claude-code' | 'opencode' | 'kimi-k2'
+    onAgentTypeChange?: (agentType: 'claude-code' | 'opencode' | 'kimi-k2') => void
     imageAttachments?: ImageAttachment[]
     onImageAttachmentsChange?: (attachments: ImageAttachment[]) => void
     selectedSkills?: string[]
