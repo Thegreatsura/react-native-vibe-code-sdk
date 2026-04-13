@@ -11,18 +11,23 @@ function getNextResetDate(): Date {
   return nextMonth
 }
 
+// Normalize Polar product names to our plan slugs
+// e.g. "Inti Computer - Starter" -> "start", "Pro Plan" -> "pro"
+function normalizePlanName(productName: string): string {
+  const name = productName?.toLowerCase() || ''
+  if (name.includes('senior')) return 'senior'
+  if (name.includes('pro')) return 'pro'
+  if (name.includes('start') || name.includes('starter')) return 'start'
+  return 'free'
+}
+
 // Map plan names to message limits
 function getMessageLimitForPlan(planName: string): string {
-  switch (planName?.toLowerCase()) {
-    case 'start':
-      return CONFIG.PAID_PLAN_LIMITS.start.toString()
-    case 'pro':
-      return CONFIG.PAID_PLAN_LIMITS.pro.toString()
-    case 'senior':
-      return CONFIG.PAID_PLAN_LIMITS.senior.toString()
-    default:
-      return CONFIG.FREE_PLAN_MESSAGE_LIMIT.toString() // free tier
-  }
+  const normalized = normalizePlanName(planName)
+  if (normalized === 'senior') return CONFIG.PAID_PLAN_LIMITS.senior.toString()
+  if (normalized === 'pro') return CONFIG.PAID_PLAN_LIMITS.pro.toString()
+  if (normalized === 'start') return CONFIG.PAID_PLAN_LIMITS.start.toString()
+  return CONFIG.FREE_PLAN_MESSAGE_LIMIT.toString()
 }
 
 // Export the route as a raw body handler to preserve the exact request body for signature verification
@@ -189,10 +194,11 @@ export async function POST(request: NextRequest) {
 
           if (userData.length > 0) {
             const userId = userData[0].id
-            const planName = checkoutData.product?.name || 'free'
-            
-            console.log(`[Polar Webhook] Updating subscription for user ${userId} to plan ${planName}`)
-            
+            const rawPlanName = checkoutData.product?.name || 'free'
+            const planName = normalizePlanName(rawPlanName)
+
+            console.log(`[Polar Webhook] Updating subscription for user ${userId} to plan ${planName} (raw: ${rawPlanName})`)
+
             // Check if subscription exists
             const existingSub = await db
               .select()
@@ -202,7 +208,7 @@ export async function POST(request: NextRequest) {
 
             const subscriptionData = {
               customerId: checkoutData.customer_id,
-              currentPlan: planName.toLowerCase(),
+              currentPlan: planName,
               checkoutId: checkoutData.id,
               productId: checkoutData.product_id,
               status: 'active',
@@ -263,10 +269,11 @@ export async function POST(request: NextRequest) {
 
         if (userData && userData.length > 0) {
           const userId = userData[0].id
-          const planName = subscriptionData.product?.name || 'free'
-          
-          console.log(`[Polar Webhook] Updating subscription for user ${userId}`)
-          
+          const rawPlanName = subscriptionData.product?.name || 'free'
+          const planName = normalizePlanName(rawPlanName)
+
+          console.log(`[Polar Webhook] Updating subscription for user ${userId} to plan ${planName} (raw: ${rawPlanName})`)
+
           // Check if subscription exists
           const existingSub = await db
             .select()
@@ -276,7 +283,7 @@ export async function POST(request: NextRequest) {
 
           const subData = {
             customerId: subscriptionData.customer_id,
-            currentPlan: planName.toLowerCase(),
+            currentPlan: planName,
             subscriptionId: subscriptionData.id,
             productId: subscriptionData.product_id,
             status: subscriptionData.status,

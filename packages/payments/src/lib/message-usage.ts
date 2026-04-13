@@ -51,11 +51,12 @@ export async function getUserMessageUsage(userId: string): Promise<MessageUsage>
     }
   } catch (error) {
     console.error('[Payments] Error getting user message usage:', error)
-    // Return default free tier limits on error
+    // On DB error, allow the message through rather than blocking the user.
+    // A missing table or transient DB issue should not prevent paid users from chatting.
     return {
-      messageLimit: PAYMENTS_CONFIG.FREE_PLAN_MESSAGE_LIMIT,
+      messageLimit: 1,
       usageCount: 0,
-      remainingMessages: PAYMENTS_CONFIG.FREE_PLAN_MESSAGE_LIMIT,
+      remainingMessages: 1,
       hasActiveSubscription: false,
       currentPlan: 'free',
       currentMonth: getCurrentMonth(),

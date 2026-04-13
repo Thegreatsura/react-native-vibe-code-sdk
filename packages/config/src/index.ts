@@ -7,7 +7,7 @@ export const CONFIG = {
    * Free plan message limit per month
    * This is the default number of messages a user can send without a subscription
    */
-  FREE_PLAN_MESSAGE_LIMIT: 0,
+  FREE_PLAN_MESSAGE_LIMIT: 10,
 
   /**
    * Default paid plan limits (can be overridden by subscription data)

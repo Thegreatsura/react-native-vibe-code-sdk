@@ -8,7 +8,7 @@ export const PAYMENTS_CONFIG = {
   /**
    * Free plan message limit per month
    */
-  FREE_PLAN_MESSAGE_LIMIT: 0,
+  FREE_PLAN_MESSAGE_LIMIT: 10,
 
   /**
    * Paid plan limits by plan name
